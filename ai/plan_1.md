@@ -38,9 +38,9 @@ Read from the code, alongside next_0's measurements.
   | 2 | 6 | 3 | boss | 10 |
   | 3 | 7 | 2 | battleship, boss | 11 |
   | 4 | 6 | 3 | boss | 10 |
-  | 5 | 1 | 0 | Gatekeeper | 2 |
+  | 5 | 9 | 0 | Gatekeeper | 10 |
 
-  That's 47 in a campaign. Location 1 alone gives almost three times what FULL needs, which is why the bot is at FULL
+  That's 55 in a campaign (location 5's nine are the fast red squadrons, `...redFast`). Location 1 alone gives almost three times what FULL needs, which is why the bot is at FULL
   at 4:14.
 - **What a lost ship costs** (`Player.die`, `Game.onRespawn`): the ship drops to SINGLE, then `ceil(lost / 2)` wreck
   POWs (3 from FULL) wait ahead with a wider magnet. That's QUAD again within seconds, plus the supply gunship after
@@ -93,17 +93,17 @@ and location 1's data.
 
    | Location | 1 | 2 | 3 | 4 | 5 | Campaign |
    |---|---|---|---|---|---|---|
-   | POWs now | 14 | 10 | 11 | 10 | 2 | 47 |
+   | POWs now | 14 | 10 | 11 | 10 | 10 | 55 |
    | POWs, plan | 3 | 3 | 3 | 3 | 2 | 14 |
 
    - **Every POW is earned.** The sources that stay are red squadrons (all five shot down) and gunships with
      `drop: 'pow'`. The other red squadrons fly as plain squadrons. `drop: 'pow'` comes off the hulk waves, and
-     `'pow'` comes off the boss and hulk `drops` lists, which keep their shields and bombs. Location 5 stays as it
-     is: its red squadron and the Gatekeeper.
+     `'pow'` comes off the boss and hulk `drops` lists, which keep their shields and bombs. Location 5 keeps two of
+     its fast red squadrons; the Gatekeeper drops a bomb instead.
    - **Spread through each location:** one early, one in the middle, one late. A ship lost in the middle of a
      location still has a POW or two ahead.
-   - **Location 1:** the POW lesson's practice squadron flies until it's shot down, so every player reaches TWIN. The
-     other two are in the middle and near the end.
+   - **Location 1:** the POW lesson's practice squadron flies up to three times (the lesson's repeats), so almost
+     every player reaches TWIN. The other two are in the middle and near the end.
    - **What the counts give.** With every POW caught and no ship lost, you leave location 1 at MISSILES and reach FULL
      at location 2's second POW, about 12–14 min into the run. A ship lost at FULL drops you to SINGLE, the supply
      gunship gives TWIN, and the 4 POWs to FULL take the rest of that location and some of the next. That's the "no

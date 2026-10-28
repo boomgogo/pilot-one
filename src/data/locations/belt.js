@@ -129,7 +129,7 @@ function boulder(b, from, speed) {
 
 const EXCAVATOR = {
   type: 'excavator', name: 'EXCAVATOR', model: 'excavator', bodyR: 15, hullR: 11, hold: { x: 0, y: 2, z: -165 }, enterFrom: -720,
-  scale: 1.5, pitch: 0.35, boom: 4, hpScale: 2.5, score: 20000, partScore: 1500, drops: ['pow', 'shield'],
+  scale: 1.5, pitch: 0.35, boom: 6, hpScale: 3.4, score: 20000, partScore: 1500, drops: ['shield'],
   parts: {
     drill: { hp: 60, r: 7 },
     launcherL: { hp: 36, r: 4.5 }, launcherR: { hp: 36, r: 4.5 },
@@ -177,6 +177,12 @@ const EXCAVATOR = {
         b.spiral += 0.37;
         b.spiralShot(core.world, b.spiral, 36 * diff.bulletSpeed);
         if (++b.bayCount % 9 === 0) boulder(b, core.world, 30);
+      }
+      // an aimed spread from the core too: something to dodge besides the pattern (plan_1 §2.4)
+      b.aimT -= dt * diff.fireRate;
+      if (b.aimT <= 0) {
+        b.aimT = 2.6;
+        b.aimed(core.world, 3, 0.1, 42, 1);
       }
     }
   },
@@ -293,12 +299,12 @@ const location = {
   stages: [
     {
       name: 'OUTER BELT',
-      ramp: { fire: 0.85, rate: 0.88, minAlive: 3, maxCharging: 4 },
+      ramp: { fire: 1.15, rate: 1.03, minAlive: 3, maxCharging: 5 },
       sections: [
         {
           id: 'outer', from: 'start', to: 's2', duration: 65, rocks: { kind: 'ore', target: 4 },
           waves: [
-            { at: 1.5, f: 'vee', type: 'dart', n: 5 },
+            { at: 1.5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 5, f: 'sweep', type: 'dart', n: 5, dy: 6 },
             { at: 9, f: 'helix', type: 'dart', n: 8 },
             { at: 13, f: 'sweep', type: 'wasp', n: 4, mirror: true, dy: -6 },
@@ -314,33 +320,33 @@ const location = {
             { at: 45.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: -8 },
             { at: 50, f: 'ring', type: 'dart', n: 8 },
             { at: 54, f: 'helix', type: 'wasp', n: 6 },
-            { at: 58, f: 'vee', type: 'dart', n: 5, dy: 6 },
+            { at: 58, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', dy: 6 },
           ],
         },
       ],
     },
     {
       name: 'ORE CONVOY',
-      ramp: { fire: 0.85, rate: 0.9, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.15, rate: 1.05, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'convoy', from: 's2', to: 's3', duration: 70, rocks: { kind: 'rock', target: 3 },
           waves: [
             { at: 1.5, f: 'sweep', type: 'dart', n: 5 },
             { at: 3, intro: 'hauler' },
-            { at: 3, hulk: 'hauler', x: 88, y: -8, speed: 26, yaw: 0.5 },
+            { at: 3, hulk: 'hauler', x: 58, y: -8, speed: 26, yaw: 0.12 },
             { at: 6, f: 'vee', type: 'wasp', n: 5 },
             { at: 12, f: 'helix', type: 'dart', n: 8 },
             { at: 16, f: 'overtake', type: 'wasp', n: 4 },
-            { at: 16, hulk: 'hauler', x: -88, y: 6, speed: 26, yaw: -0.5 },
-            { at: 24, f: 'snake', type: 'dart', n: 5, red: true, dy: 8 },
+            { at: 16, hulk: 'hauler', x: -58, y: 6, speed: 26, yaw: -0.12 },
+            { at: 24, f: 'snake', type: 'dart', n: 5, dy: 8 },
             { at: 31, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles', drop: 'shield' },
             { at: 33, f: 'sweep', type: 'dart', n: 5, dy: -6 },
             { at: 37, f: 'swarm', type: 'miner', n: 10 },
-            { at: 34, hulk: 'hauler', x: 88, y: 10, speed: 28, yaw: 0.5, drop: 'pow' },
+            { at: 34, hulk: 'hauler', x: 58, y: 10, speed: 28, yaw: 0.12 },
             { at: 44, f: 'dive', type: 'dart', n: 4 },
             { at: 48, f: 'vee', type: 'wasp', n: 5, roll: PI },
-            { at: 48, hulk: 'hauler', x: -88, y: -10, speed: 30, yaw: -0.5 },
+            { at: 48, hulk: 'hauler', x: -58, y: -10, speed: 30, yaw: -0.12 },
             { at: 54, f: 'ring', type: 'dart', n: 8 },
             { at: 58, f: 'wall', type: 'dart', n: 9 },
             { at: 62, f: 'sweep', type: 'wasp', n: 4, dy: 6 },
@@ -350,13 +356,13 @@ const location = {
     },
     {
       name: 'THE SWARM',
-      ramp: { fire: 0.9, rate: 0.95, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.2, rate: 1.1, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'swarm', from: 's3', to: 's4', duration: 65, rocks: { kind: 'ore', target: 3 },
           waves: [
             { at: 1.5, f: 'swarm', type: 'miner', n: 10 },
-            { at: 5, f: 'vee', type: 'dart', n: 5 },
+            { at: 5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 8, f: 'swarm', type: 'miner', n: 12, mirror: true },
             { at: 12, f: 'helix', type: 'wasp', n: 6 },
             { at: 16, f: 'swarm', type: 'miner', n: 12, dy: 6 },
@@ -371,31 +377,31 @@ const location = {
             { at: 49, f: 'swarm', type: 'miner', n: 14 },
             { at: 53, f: 'dive', type: 'wasp', n: 4 },
             { at: 56, f: 'swarm', type: 'miner', n: 12, dx: -8 },
-            { at: 60, f: 'vee', type: 'dart', n: 5 },
+            { at: 60, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
           ],
         },
       ],
     },
     {
       name: 'CRUSHER FIELD',
-      ramp: { fire: 0.95, rate: 1, minAlive: 4, maxCharging: 5 },
+      ramp: { fire: 1.25, rate: 1.15, minAlive: 4, maxCharging: 6 },
       sections: [
         {
           id: 'crusher', from: 's4', to: 's5', duration: 70, rocks: { kind: 'ore', target: 6 },
           waves: [
-            { at: 1.5, f: 'vee', type: 'dart', n: 5 },
+            { at: 1.5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 3, intro: 'driver' },
-            { at: 3, hulk: 'driver', x: 70, y: -30, z: -700, speed: 18 },
+            { at: 3, hulk: 'driver', x: 60, y: -30, z: -700, speed: 18 },
             { at: 8, f: 'sweep', type: 'wasp', n: 4 },
-            { at: 12, hulk: 'driver', x: -72, y: -26, z: -700, speed: 18 },
+            { at: 12, hulk: 'driver', x: -60, y: -26, z: -700, speed: 18 },
             { at: 14, f: 'helix', type: 'dart', n: 8 },
             { at: 18, f: 'swarm', type: 'miner', n: 10 },
-            { at: 22, f: 'snake', type: 'dart', n: 5, red: true, mirror: true },
-            { at: 28, f: 'hold', type: 'hammer', n: 1, weapon: 'shells', drop: 'pow' },
-            { at: 30, hulk: 'driver', x: 74, y: 22, z: -700, speed: 18 },
+            { at: 22, f: 'snake', type: 'dart', n: 5, mirror: true },
+            { at: 28, f: 'hold', type: 'hammer', n: 1, weapon: 'shells' },
+            { at: 30, hulk: 'driver', x: 60, y: 22, z: -700, speed: 18 },
             { at: 33, f: 'vee', type: 'wasp', n: 5 },
             { at: 37, f: 'wall', type: 'dart', n: 9 },
-            { at: 41, hulk: 'driver', x: -70, y: 18, z: -700, speed: 18 },
+            { at: 41, hulk: 'driver', x: -60, y: 18, z: -700, speed: 18 },
             { at: 44, f: 'overtake', type: 'wasp', n: 4 },
             { at: 48, f: 'swarm', type: 'miner', n: 12 },
             { at: 52, f: 'mines', type: 'mine', n: 8 },
@@ -408,22 +414,22 @@ const location = {
     },
     {
       name: 'REFINERY',
-      ramp: { fire: 1, rate: 1.05, minAlive: 4, maxCharging: 5 },
+      ramp: { fire: 1.3, rate: 1.2, minAlive: 4, maxCharging: 6 },
       sections: [
         {
           id: 'refinery', from: 's5', to: 'boss', duration: 72, rocks: { kind: 'metal', target: 3 },
           waves: [
             { at: 1.5, f: 'vee', type: 'wasp', n: 5 },
             { at: 3, intro: 'refinery' },
-            { at: 3, hulk: 'refinery', x: -92, y: -10, z: -760, speed: 20, yaw: PI },
+            { at: 3, hulk: 'refinery', x: -64, y: -10, z: -760, speed: 20, yaw: PI },
             { at: 8, f: 'sweep', type: 'dart', n: 5 },
             { at: 12, f: 'helix', type: 'dart', n: 8 },
             { at: 16, f: 'hold', type: 'hammer', n: 1, weapon: 'laser' },
-            { at: 20, hulk: 'refinery', x: 94, y: 8, z: -760, speed: 20, drop: 'pow' },
+            { at: 20, hulk: 'refinery', x: 64, y: 8, z: -760, speed: 20 },
             { at: 24, f: 'swarm', type: 'miner', n: 12 },
             { at: 28, f: 'snake', type: 'wasp', n: 5, red: true },
-            { at: 34, f: 'vee', type: 'dart', n: 5, roll: PI },
-            { at: 38, hulk: 'refinery', x: -92, y: 12, z: -760, speed: 22, yaw: PI },
+            { at: 34, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', roll: PI },
+            { at: 38, hulk: 'refinery', x: -64, y: 12, z: -760, speed: 22, yaw: PI },
             { at: 42, f: 'mines', type: 'mine', n: 6 },
             { at: 46, f: 'overtake', type: 'wasp', n: 4, mirror: true },
             { at: 50, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles', drop: 'shield' },
@@ -436,14 +442,14 @@ const location = {
     },
     {
       name: 'EXCAVATOR',
-      ramp: { fire: 0.9, rate: 0.8, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.2, rate: 0.95, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'excavator', from: 'boss', to: 'dock', duration: 72, boss: 'excavator', bossTime: 64, rocks: { kind: 'ore', target: 2 },
           waves: [
             { at: 2.4, msg: 'WARNING\nEXCAVATOR', warn: true, msgT: 2.4 },
             { at: 18, f: 'swarm', type: 'miner', n: 8, dy: 10 },
-            { at: 30, f: 'snake', type: 'dart', n: 5, red: true, dy: 10 },
+            { at: 30, f: 'snake', type: 'dart', n: 5, dy: 10 },
             { at: 44, f: 'swarm', type: 'miner', n: 10, dy: -8 },
             { at: 54, f: 'sweep', type: 'wasp', n: 4, dy: 12 },
           ],

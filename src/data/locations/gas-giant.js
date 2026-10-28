@@ -173,7 +173,7 @@ const location = {
             { at: 21.5, f: 'vee', type: 'dart', n: 3, fireChance: 0.7, practice: 'aimed' },
             { at: 26.5, f: 'helix', type: 'dart', n: 6 },
             { at: 30.5, f: 'overtake', type: 'dart', n: 4 },
-            { at: 34, f: 'snake', type: 'dart', n: 5, red: true, mirror: true, speedMul: 0.7 },
+            { at: 34, f: 'snake', type: 'dart', n: 5, mirror: true, speedMul: 0.7 },
             { at: 42, f: 'hold', type: 'hammer', n: 1, fireChance: 0, drop: 'shield' },
             { at: 43, f: 'sweep', type: 'dart', n: 5, dy: 6 },
             { at: 46.5, f: 'vee', type: 'dart', n: 5, dx: 8, dy: -6 },
@@ -200,7 +200,7 @@ const location = {
             { at: 22, lesson: 'roll90' },
             { at: 22.5, f: 'sweep', type: 'dart', n: 6, rot: PI / 2, roll: PI / 2, practice: 'roll90' },
             { at: 29, f: 'overtake', type: 'dart', n: 4 },
-            { at: 33, f: 'snake', type: 'dart', n: 5, red: true, roll: PI, speedMul: 0.75 },
+            { at: 33, f: 'snake', type: 'dart', n: 5, roll: PI, speedMul: 0.75 },
             { at: 41.5, f: 'ring', type: 'dart', n: 8 },
             { at: 46, f: 'sweep', type: 'dart', n: 5, dy: 8 },
             { at: 46.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: -8 },
@@ -213,7 +213,7 @@ const location = {
     },
     {
       name: 'INNER RINGS',
-      ramp: { fire: 0.55, rate: 0.8, minAlive: 3, maxCharging: 3 },
+      ramp: { fire: 0.65, rate: 0.85, minAlive: 3, maxCharging: 3 },
       sections: [
         {
           id: 'inner', from: 'rejoin', to: 's5', duration: 70, rocks: { kind: 'ice', target: 4 },
@@ -229,7 +229,7 @@ const location = {
             { at: 41, intro: 'pairs' },
             { at: 41, f: 'vee', type: 'wasp', n: 3 },
             { at: 45.5, f: 'sweep', type: 'wasp', n: 4, dy: 8 },
-            { at: 49, f: 'hold', type: 'hammer', n: 1, drop: 'pow' },
+            { at: 49, f: 'hold', type: 'hammer', n: 1 },
             { at: 51, f: 'overtake', type: 'dart', n: 4 },
             { at: 55, f: 'mines', type: 'mine', n: 6 },
             { at: 59, f: 'dive', type: 'wasp', n: 4 },
@@ -239,7 +239,7 @@ const location = {
     },
     {
       name: 'WRECK FIELD',
-      ramp: { fire: 0.8, rate: 0.85, minAlive: 3, maxCharging: 3 },
+      ramp: { fire: 0.9, rate: 0.9, minAlive: 3, maxCharging: 3 },
       sections: [
         {
           id: 'wreck', from: 's5', to: 's6', duration: 70, rocks: { kind: 'metal', target: 3 },
@@ -254,7 +254,7 @@ const location = {
             { at: 27, f: 'sweep', type: 'dart', n: 5, dy: -6 },
             { at: 33, lesson: 'evade' },
             { at: 33.5, gate: true, practice: 'evade' },
-            { at: 42, f: 'snake', type: 'wasp', n: 5, red: true, speedMul: 0.8 },
+            { at: 42, f: 'snake', type: 'wasp', n: 5, speedMul: 0.8 },
             { at: 48, f: 'hold', type: 'hammer', n: 1, dx: -12, weapon: 'laser', drop: 'laser' },
             { at: 50, f: 'vee', type: 'wasp', n: 5 },
             { at: 55, f: 'wall', type: 'dart', n: 9 },
@@ -265,7 +265,7 @@ const location = {
     },
     {
       name: 'CRUISER',
-      ramp: { fire: 0.7, rate: 0.85, minAlive: 3, maxCharging: 3 },
+      ramp: { fire: 0.8, rate: 0.9, minAlive: 3, maxCharging: 3 },
       sections: [
         {
           id: 'cruiser', from: 's6', to: 'night', duration: 60, boss: 'cruiser', bossTime: 48, rocks: { kind: 'metal', target: 2 },
@@ -273,7 +273,7 @@ const location = {
             { at: 2.4, msg: 'WARNING\nCRUISER', warn: true, msgT: 2.4 },
             { at: 3, lesson: 'boss' },
             { at: 13, f: 'sweep', type: 'dart', n: 4, dy: 10 },
-            { at: 22, f: 'snake', type: 'dart', n: 5, red: true, dy: 9 },
+            { at: 22, f: 'snake', type: 'dart', n: 5, dy: 9 },
             { at: 33, f: 'sweep', type: 'dart', n: 4, mirror: true, dy: -10 },
             { at: 41, f: 'dive', type: 'dart', n: 4 },
           ],
@@ -282,7 +282,7 @@ const location = {
     },
     {
       name: 'NIGHT SIDE',
-      ramp: { fire: 0.85, rate: 0.95, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 0.95, rate: 1, minAlive: 4, maxCharging: 4 },
       sections: [
         {
           id: 'night', from: 'night', to: 'boss', duration: 75, rocks: { kind: 'dark', target: 3 }, lightning: true, calm: true,
@@ -291,9 +291,9 @@ const location = {
             { at: 4.5, f: 'ring', type: 'dart', n: 8, roll: PI },
             { at: 8.5, f: 'sweep', type: 'dart', n: 5, dy: 6 },
             { at: 9, f: 'sweep', type: 'dart', n: 5, rot: PI / 2, dx: 10 },
-            { at: 12, f: 'hold', type: 'hammer', n: 1, roll: PI, drop: 'pow' },
+            { at: 12, f: 'hold', type: 'hammer', n: 1, roll: PI },
             { at: 12.5, f: 'helix', type: 'dart', n: 8 },
-            { at: 17, f: 'snake', type: 'dart', n: 5, red: true, flipY: true },
+            { at: 17, f: 'snake', type: 'dart', n: 5, flipY: true },
             { at: 21, f: 'overtake', type: 'wasp', n: 4 },
             { at: 21, f: 'overtake', type: 'wasp', n: 4, mirror: true, flipY: true },
             { at: 25, f: 'mines', type: 'mine', n: 6 },
@@ -305,7 +305,7 @@ const location = {
             { at: 46, f: 'dive', type: 'wasp', n: 4 },
             { at: 46.5, f: 'dive', type: 'wasp', n: 4, mirror: true, flipY: true },
             { at: 50, f: 'helix', type: 'dart', n: 10 },
-            { at: 54, f: 'snake', type: 'wasp', n: 5, red: true },
+            { at: 54, f: 'snake', type: 'wasp', n: 5 },
             { at: 59, f: 'mines', type: 'mine', n: 8 },
             { at: 62.5, f: 'vee', type: 'wasp', n: 5, dy: 4 },
             { at: 63, f: 'sweep', type: 'dart', n: 5, dy: -8 },
@@ -315,15 +315,15 @@ const location = {
     },
     {
       name: 'MOTHERSHIP',
-      ramp: { fire: 0.9, rate: 0.6, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1, rate: 0.65, minAlive: 4, maxCharging: 4 },
       sections: [
         {
           id: 'mothership', from: 'boss', to: 'dock', duration: 75, boss: 'mothership', bossTime: 70,
           waves: [
             { at: 2.4, msg: 'WARNING\nMOTHERSHIP', warn: true, msgT: 2.4 },
-            { at: 20, f: 'snake', type: 'dart', n: 5, red: true, dy: 12 },
+            { at: 20, f: 'snake', type: 'dart', n: 5, dy: 12 },
             { at: 27, f: 'sweep', type: 'wasp', n: 3, dy: 12 },
-            { at: 40, f: 'snake', type: 'dart', n: 5, red: true, mirror: true, dy: -10 },
+            { at: 40, f: 'snake', type: 'dart', n: 5, mirror: true, dy: -10 },
             { at: 46, f: 'sweep', type: 'wasp', n: 3, mirror: true, dy: -12 },
           ],
         },

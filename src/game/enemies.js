@@ -6,7 +6,8 @@ import { BULLET } from './shots.js';
 import { enemyCanFire } from './weapons.js';
 
 // Enemy types. hp in player-shot units; r = collision radius; rate = seconds between volleys.
-// A wave can swap a gunship's weapon: {weapon: 'shells' | 'missiles' | 'laser'} (see WEAPON below).
+// A wave can swap a gunship's weapon: {weapon: 'shells' | 'missiles' | 'laser'}, or a dart's: {weapon: 'burst3'}
+// (see WEAPON below).
 export const ENEMY = {
   dart: { model: 'dart', hp: 1, r: 2.7, score: 100, fire: 'aimed', rate: 3.4, fireChance: 0.28, glow: [1, 0.35, 0.2], explode: 1 },
   wasp: { model: 'wasp', hp: 3, r: 2.9, score: 200, fire: 'spread3', rate: 3.8, fireChance: 0.45, glow: [1, 0.35, 0.95], explode: 1.2 },
@@ -21,6 +22,8 @@ export const ENEMY = {
 // Enemy weapons by firing class (src/game/weapons.js). speed: base projectile speed (× difficulty).
 const WEAPON = {
   aimed: { cls: 'medium', speed: 46 },
+  // three aimed bullets BURST_GAP s apart on one line: reads as a stream, dodged by moving (plan_1 §2.3)
+  burst3: { cls: 'medium', speed: 46, rate: 4.2 },
   spread3: { cls: 'medium', speed: 44 },
   fan5: { cls: 'medium', speed: 40 },
   shells: { cls: 'slow', speed: 18, rate: 2.6 },
@@ -28,6 +31,7 @@ const WEAPON = {
   laser: { cls: 'instant', speed: 0, rate: 5.2 },
 };
 const CHARGE = 0.3; // gun glow before a volley: who is about to fire
+const BURST_GAP = 0.12;
 // The shoot-down ratio counts only enemies you could engage (ai/summary.md §6.2): hit at least once, or ENGAGE_T s in
 // view within ENGAGE_RANGE (98% of the bots' hits land inside 340 units). Gate posts never count.
 const ENGAGE_T = 1.5;
@@ -65,6 +69,7 @@ export class Enemies {
     this.game = game;
     this.pool = Array.from({ length: cap }, () => new Enemy());
     this.list = []; // active enemies
+    this.visible = 0; // on screen and ahead within ENGAGE_RANGE (the density director, src/game/waves.js)
     this.uidSeq = 0;
     this.meshes = {};
     this.objects = [];
@@ -119,6 +124,7 @@ export class Enemies {
     e.weapon = (def.fire && wave.weapon) || def.fire;
     e.rate = WEAPON[e.weapon]?.rate || def.rate;
     e.charge = 0;
+    e.burst = 0; // burst3: bullets still to come
     e.markT = -1;
     e.shielded = !!wave.roll;
     e.shieldLevel = e.shielded ? 1 : 0;
@@ -186,6 +192,7 @@ export class Enemies {
     const list = this.list;
     let charging = 0;
     for (const e of list) if (e.charge > 0) charging++;
+    this.visible = 0;
     for (let k = list.length - 1; k >= 0; k--) {
       const e = list[k];
       e.t += dt;
@@ -206,8 +213,10 @@ export class Enemies {
         continue;
       }
       e.vs = this.sizeFloor(e);
+      const inView = e.pos.z < 0 && e.pos.z > -ENGAGE_RANGE && g.onScreen(e.pos.x, e.pos.y, e.pos.z, 0);
+      if (inView) this.visible++;
       if (!e.counted) {
-        if (e.pos.z < 0 && e.pos.z > -ENGAGE_RANGE && g.onScreen(e.pos.x, e.pos.y, e.pos.z, 0)) e.seen += dt;
+        if (inView) e.seen += dt;
         if (e.seen >= ENGAGE_T) this.engage(e);
       }
       e.prev.copy(e.pos);
@@ -249,6 +258,14 @@ export class Enemies {
           }
         }
       }
+      if (e.burst > 0 && (e.burstT -= dt) <= 0) {
+        // the rest of a burst: the same line as the first bullet (it stops if you're gone or the cap is reached)
+        const go = g.player.alive && !g.fireHeld;
+        e.burst = go ? e.burst - 1 : 0;
+        e.burstT = BURST_GAP;
+        const sp = WEAPON.burst3.speed * g.difficulty.bulletSpeed;
+        if (go) g.bullets.spawn(e.pos.x, e.pos.y, e.pos.z, e.burstDir.x * sp, e.burstDir.y * sp, e.burstDir.z * sp, 0);
+      }
     }
   }
 
@@ -276,6 +293,12 @@ export class Enemies {
     switch (e.weapon) {
       case 'aimed':
         b.spawn(x, y, z, _dir.x * sp, _dir.y * sp, _dir.z * sp, 0);
+        break;
+      case 'burst3':
+        b.spawn(x, y, z, _dir.x * sp, _dir.y * sp, _dir.z * sp, 0);
+        (e.burstDir ||= new Vector3()).copy(_dir);
+        e.burst = 2;
+        e.burstT = BURST_GAP;
         break;
       case 'spread3':
         // a pair either side of the aim line: stay put and both miss, drift and one finds you
@@ -388,7 +411,7 @@ export class Enemies {
     if (escaped) this.game.onEnemyEscaped(e);
   }
 
-  /** Count of enemies that matter for the density director. */
+  /** Count of enemies in the air (anywhere, on screen or not). */
   get alive() {
     return this.list.length;
   }

@@ -4,6 +4,7 @@
 const EFFECTS = [
   'shot', 'enemyShot', 'hit', 'deflect', 'explosion', 'playerHit', 'pickup', 'powerUp', 'bomb', 'warning', 'beamCharge',
   'extraLife', 'whoosh', 'evade', 'missile', 'lockWarn', 'laser', 'shellPop', 'cancel', 'tick', 'zap', 'rumble', 'jump',
+  'medalLost',
 ];
 
 /**
@@ -230,6 +231,12 @@ export class Sfx {
     if (!this._ok('beam', 0.3)) return;
     this._tone('sawtooth', 200, 1600, 1.0, 0.04);
     this._noise(1.0, 0.06, 300, 4000, 4, 0, 'bandpass');
+  }
+  /** A medal got past: the ladder starts again (ai/summary.md §6.3). Two falling notes. */
+  medalLost() {
+    if (!this._ok('medalLost', 0.3)) return;
+    this._tone('square', 784, 740, 0.12, 0.06);
+    this._tone('square', 523, 330, 0.26, 0.06, 0.13);
   }
   extraLife() {
     if (!this._ok('1up', 0.3)) return;

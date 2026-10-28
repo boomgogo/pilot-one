@@ -34,12 +34,12 @@ How the build keeps to it (`scripts/check-budget.js`, gzip sizes):
 
 | Budget | Limit | Latest |
 |---|---|---|
-| Initial JS (three.js + game code) | 250 KB | 245.2 KB |
+| Initial JS (three.js + game code) | 250 KB | 246.7 KB |
 | Everything before Start is enabled | 600 KB | — |
 | Each later location's JS chunk | 40 KB | — |
 | Each later location's GLB | 60 KB | — |
-| Time to interactive, slowest throttled profile (`npm run loadtime`) | ≤ 3 s | 2.71 s |
-| Frame rate, low tier, 4× CPU throttle, worst 1 s (`npm run perf`) | no drop over 10% between versions | ≥ 103.7 fps |
+| Time to interactive, slowest throttled profile (`npm run loadtime`) | ≤ 3 s | 2.98 s (Oct 29; the build before plan 1 measured 2.96 s the same day) |
+| Frame rate, low tier, 4× CPU throttle, worst 1 s (`npm run perf`) | no drop over 10% between versions | 68–114 fps over 3 runs per stage, within 10% of the build before plan 1 (the run-to-run spread is ±20%) |
 
 Location 1's mothership and every later location (chunk and GLB) are fetched in the background while you play the
 one before (§8).
@@ -93,7 +93,8 @@ roll, bosses and the bomb, the dark, and a final exam (the mothership). New play
   deck. Then the location clear screen (tally, records, full shield and bombs back to 2), the star map, and a jump
   that launches by itself once the next location is loaded.
 - **Ending** (`src/ui/screens.js` `showEnding`): "THE DREADNOUGHT IS DOWN" with the clear bonus, or, if it gets
-  away, "THE DREADNOUGHT ESCAPED" with the game-over music. Both show the run's tally and the name entry.
+  away, "THE DREADNOUGHT ESCAPED" with the game-over music and how much of its hull it got away with. Both show the
+  run's tally and the name entry.
 
 ### 4.4 Starting and records
 
@@ -148,17 +149,23 @@ are remembered, and "Reset tutorial tips" is in the pause menu. Just-in-time hin
 
 ## 6. Power and score
 
-### 6.1 Power ladder and recovery
+### 6.1 Power ladder
 
 Each POW adds a level: SINGLE → TWIN → QUAD (a cone, which you roll to turn vertical) → MISSILES (wingman drones) →
-SPIRAL (four bolts on a turning circle) → FULL. POWs come from a whole red squadron shot down, and from some gunships
-and bosses.
+SPIRAL (four bolts on a turning circle) → FULL. At FULL the outer streams (the cone and the drone bolts) are drawn
+thin and dim, so they don't hide the targets. Their damage is the same.
 
-Losing a ship drops you to SINGLE, but the power is easy to win back:
-- **Wreck POWs:** `ceil(levels lost / 2)`, up to 3, wait ahead of the respawn point with a wider magnet. A continue
-  gets them too.
+Full power is earned, and a lost ship takes it away (plan 1). The one balance knob is how many POWs there are:
+- **2 POWs in location 1, 3 in each of locations 2–4, 2 in location 5,** spread through the location. Every one is
+  a red squadron shot down to the last ship; location 1's are the POW lesson's squadron and one in the inner rings.
+  Bosses and hulks drop shields and bombs, not POWs. With every POW caught you leave location 1 at QUAD and reach
+  FULL with location 2's last POW, about 13 minutes in.
+- **A POW flies to the ship** 0.4 s after it drops, in about 2 s: what you earn is what you get. A POW caught at FULL
+  is worth 5,000 points.
+- **A lost ship drops you to SINGLE, with nothing given back.** A continue starts at SINGLE too. FULL again is 5 POWs
+  away: the rest of that location and some of the next.
 - **Supply gunship:** if you're still at power ≤ 1 15 s after a respawn, a slow gunship that doesn't fire brings one
-  more POW.
+  POW.
 - **Location 5's fast red squadrons** fly at normal speed while you're under MISSILES.
 
 ### 6.2 Shoot-down ratio
@@ -171,8 +178,9 @@ over from the previous stage counts in the stage where it's hit.
 
 - **Chain:** ×2 / ×3 / ×4 kill points from 10 / 25 / 50 kills. It resets 2 s after the last kill or on a lost ship,
   shows on the HUD from 5, and its peak is paid at the tally (100 per kill).
-- **Medals:** from gunships, hulk parts and boss parts. Their value climbs 100 → 5,000 for each one caught in a row,
-  and goes back to 100 when one gets past.
+- **Medals:** from gunships, hulk parts and boss parts. Their value climbs 100 → 5,000, then 1,000 more per catch up to
+  10,000, for each one caught in a row, and goes back to 100 when one gets past. A miss is loud: a falling two-note
+  sound, "MEDAL LOST" flashing red on the HUD, and a tip the first time.
 - **Clear bonus:** 500,000 + 50,000 per ship left, doubled for a one-credit clear.
 - **Extra ships** at 150k … 3M.
 
@@ -195,20 +203,33 @@ third in locations 2–4, half in location 5.
 Each location authors its own stage ramps, and a location factor T scales them up from one location to the next
 (`game.js` `makeDifficulty`; location 1 has T = 0). Locations 4–5 get harder through formations, not a wall of
 bullets: bigger and faster squadrons, more second passes, and a fire scale per location (`fireScale`). A bullet cap
-per stage (12 live enemy bullets in location 4, 18 in location 5) makes enemy, hulk and boss guns wait above it.
+per stage (10 live enemy bullets in location 2, 12 in locations 3–4, 18 in location 5) makes enemy, hulk and boss
+guns wait above it.
+
+There is something to dodge from the enemies, not only the hazards (plan 1): locations 2–4's ramps sit close to
+location 5's, location 1's stages 4–8 fire more than its lessons, and darts in V formations fire `burst3`, three
+aimed bullets 0.12 s apart on one line (dodged by moving, as the red ring teaches).
 
 ### 7.3 Bosses, hulks, hazards, feeders
 
-- **Bosses** (`bosses.js`): multi-part, each part a kill with a medal. When a boss dies, the rest of its section warps
-  past at speed.
+- **Bosses** (`bosses.js`): multi-part, each part a kill with a medal. Any boss escapes when its time limit runs out:
+  a strip under its hp bar drains, the seconds show in the last 15 with a warning at 10, and the escape banner says
+  how much hull it had left. Every boss dies the same way: 3 s of explosions chained across the hull, then the final
+  blast, a ring the size of the boss and a white-out (`boom` 4 for the cruiser, 6 for the others, 8 for the
+  Dreadnought). Location 2–4 bosses add an aimed spread from the core; the Gatekeeper's turrets carry warm beacons;
+  the Dreadnought is the biggest thing in the game. When a boss dies, the rest of its section warps past at speed.
 - **Hulks** (`hulks.js`): big targets with destructible parts that aren't bosses (ore haulers, the refinery, the
-  battleship).
+  battleship). They pass close: every hull sphere at least 12 units outside the play box.
 - **Zone hazards** (`hazards.js`): telegraphed volumes (lightning, geysers, flares, crossfire), each answered by a
   skill that location 1 teaches.
 - **Feeders:** during a boss fight, a 3–4 dart wave crosses in front of the boss every 6–8 s. Outside boss fights, a
-  lull filler sends one when there's been no kill for 8 s and fewer than 4 enemies are in the air (never during
-  lessons or the landing). Feeders don't fire in locations 1–2, and fire at half rate after that. The lull filler
-  doesn't fire in a stage's last section yet, which is the whole of most stages: a bug (§14).
+  lull filler sends one when there's been no kill for 8 s and fewer than 4 targets are in view (never during
+  lessons, the landing or a stage's closing tally). Feeders don't fire in location 1, and fire at half rate after
+  that.
+- **The density director** (`waves.js`) counts what you can see: enemies on screen and ahead within 350 units, live
+  hulk parts on screen, a boss. The wave clock runs 4× while fewer than the stage's `minAlive` are in view, and after
+  1 s with nothing in view it jumps to the next wave, at most 6 s ahead of its time (never past a lesson, a hint or
+  a message, which are timed to the place). Killing fast brings the next wave sooner.
 
 ### 7.4 Readability
 
@@ -216,6 +237,9 @@ per stage (12 live enemy bullets in location 4, 18 in location 5) makes enemy, h
   follows the drawn size, so you can hit what you see.
 - **Rim light:** the ship rim light isn't fogged, and it's 30% stronger in the nebula, the frozen moon and the
   corona.
+- **Red wins:** pickup catch rings are small and faint, drawn under the danger rings. POWs fly to you and have none.
+- **One banner at a time:** location card > stage card > warning > pickup. A pickup during a card or a warning shows
+  as a popup at the ship; a stage card clears the hint line.
 
 ## 8. Rendering, loading, performance
 
@@ -257,7 +281,7 @@ All in `scripts/`. See the README for the commands.
 |---|---|
 | `play/bot.js` | plays like a person: real input events, sees only the screen through a 180–300 ms reaction delay, Fitts-like mouse moves. Never writes game state. Presets `average`, `expert`, and `showcase` (a calm, good player for video: capped aim speed, sticks to a target, prefers centred targets, bombs into bullet curtains) |
 | `play/record.js` | frame-exact 60 fps video, sound and telemetry; real-time play (`npm run play`, also `--human`); whole-campaign takes (one video and sound stems per location, `--video-locs`), `--dpr`, `--attract` fly-bys, `--clean`, `--master`. A run depends only on seed, size, `--q` and holds: video and no-video runs are identical |
-| `play/analyze.js` | `telemetry`: what was on screen, kill cadence, enemy fire by class and its escape time, hit fairness, per-stage and per-location tables, the dodge probe. `video`: motion, flashes, audio onsets and loudness from any video. `chart`: motion over time as SVG. `highlights`: a take's tagged moments and windows to avoid; `--rank` scores takes for showcase use. |
+| `play/analyze.js` | `telemetry`: what was on screen, kill cadence, enemy fire by class and its escape time, hit fairness, per-stage and per-location tables, the dodge probe. `video`: motion, flashes, audio onsets and loudness from any video. `chart`: motion over time as SVG. `highlights`: a take's tagged moments and windows to avoid; `--rank` scores takes for showcase use. `campaign`: whole-campaign takes side by side (first FULL, time at each power level, the climb back after a lost ship, POWs caught, empty screens, enemy fire, bosses, extra ships) |
 | `play/edit.js` | `npm run video -- youtube\|short\|x`: cuts a take into a platform video from an edit list (`play/edits/*.json`): captions and cards rendered by Chrome, music beds from the stems, −14 LUFS, checks against the platform's numbers |
 | `src/game/telemetry.js` | the in-game side: records every 0.25 s, plus events; the dodge probe flies the ship's escape in 8 directions against each threat |
 | `play/probe-volleys.js` | checks that no two bolts of a volley ever cross |
@@ -272,25 +296,30 @@ All in `scripts/`. See the README for the commands.
 
 ## 12. Tuning targets
 
-Our own targets, measured with the bot (average and expert skill):
+Our own targets, measured with the bots (§11). Since plan 1 (Oct 29) they are measured on whole campaigns:
+showcase seeds 1–8 at `--q high`, average and expert seeds 1–3 at `--q medium`, all at 1280×720, with
+`analyze.js campaign`. "Before" is the same 14 campaigns on the build before plan 1 (`recordings/p1/base`).
 
-The shoot-down ratios are from seed 1, `--q medium`, after the double-tap fix (Oct 28: in `?capture` the evasive
-roll's double-tap is timed on the game clock). Before it, ordinary roll-key presses registered as extra evasive rolls
-at telemetry speed, which gave the bots free invulnerability and 2–10 points more.
-
-| Measure | Target | Latest |
-|---|---|---|
-| Enemy bullets on screen, location 1 | mean 1.5–3, p90 ≤ 6, bosses up to about 15 | — |
-| Enemy fire on screen, location 5 (mean) | ≤ 7 | 4.7–5.2 |
-| Enemies on screen, location 5 (mean) | ≥ 9 | 7.8–9.1 |
-| Hits warned (marker ≥ 0.3 s) and visible (≥ 0.4 s) before impact | ≥ 95% | 87–100% in location 5 |
-| Shoot-down ratio, average bot, locations 1–4 | ≥ 70% | 69–89% (L1 89, L2 69, L3 81, L4 78) |
-| Shoot-down ratio, expert, locations 1–4 | ≥ 85% | 84–93% (L1 92, L2 87, L3 93, L4 84) |
-| Expert after its first lost ship | within 15 points of before | 88–95% |
-| Back to QUAD after a lost ship, median | ≤ 30 s | 4–30 s |
-| Longest gap with no kill | ≤ 12 s | 15–31 s (not met) |
-| Player stream on screen while firing | ≥ 25% of screen height | median 40% |
-| Location 5 outcome | doesn't clear | both bots reach the Dreadnought; it escapes. The showcase bot destroys it in 1 of 14 campaigns (Oct 28 scout) |
+| Measure | Target | Latest | Before |
+|---|---|---|---|
+| First FULL, no ship lost (expert, showcase) | 11–16 min | 13.5–15.7 min | 4:13–4:27 |
+| Time at FULL, locations 2–4 | showcase 30–60%, average ≤ 20% | showcase 47% (15–74), average 19–20%, expert 75% (it lost no ship) | 84–100% |
+| Back to FULL after a ship lost at FULL | ≥ 5 min | 7.8–9.4 min when it comes back; mostly not before the end of the run | 6 s to 3 min |
+| POW drop to pickup | ≤ 3 s | 1.7 s | 9–17 s in location 1 |
+| Shoot-down ratio, average bot, locations 1–4 | ≥ 70% | L1 72–75%, L2 94–96%, L3 77–78%, L4 68–80% | 89–100% |
+| Shoot-down ratio, expert, locations 1–4 | ≥ 85% | L1 78–81% (not met: the tutorial is flown at SINGLE to QUAD), L2–4 97–100% | 92–100% |
+| Longest gap with no kill, locations 2–4 (location 1's lessons hold the waves) | ≤ 12 s | 9–15 s at FULL, up to 32 s below it | 20–33 s |
+| No enemy on screen, locations 1–4 | ≤ 30% of samples, no section over 40% | L1 23–30%; L2–4 16–46% (the strong runs at FULL are the emptiest); worst sections 37–43% | 31–53%; hazard sections 51–65% |
+| Enemy bullets on screen, location 1 stages 4–8 | mean 1.5–3, p90 ≤ 6 | 1.1–2.0 | 0.3–0.9 |
+| Enemy bullets on screen, locations 2–4 | mean 2–4 | 1.9–2.9 below FULL, 0.4–1.3 at FULL | 0.2–0.9 |
+| Hits from enemy fire (bullets, shells, missiles), locations 2–4 | ≥ 30% | 15% (not met: beams and hazards still lead) | 6% |
+| Hits warned (marker ≥ 0.3 s) and visible (≥ 0.4 s) before impact | ≥ 95% | 93% (the rest: flying into a bullet in view for 1.5–4.6 s) | 98% |
+| Location 2–4 boss fight | expert 35–55 s | expert 33–37 s; below FULL the Flagship and the Fortress escape | 25–32 s |
+| Enemy fire on screen, location 5 (mean) | ≤ 7 | 4.0–5.3 | 3.3–3.8 |
+| Enemies on screen, location 5 (mean) | ≥ 9 | 6.6–8.8 | 4.7–5.7 |
+| Player stream on screen while firing | ≥ 25% of screen height | median 40% (before plan 1) | |
+| Extra ships per campaign | no more than before | 5–6 | 6 |
+| Location 5 outcome | doesn't clear; the showcase bot destroys the Dreadnought in 1–3 of 8 | destroyed in 3 of 8 (82–84 s of 86); two more escape with 3% and 6% of the hull | none of 14 |
 
 ## 13. How it got here
 
@@ -304,32 +333,37 @@ at telemetry speed, which gave the bots free invulnerability and 2–10 points m
    name Pilot One.
 5. **Iteration 4:** recovery after a lost ship, kills during boss fights, a fairer tally, chain and medals, the hall
    of fame, location 4–5 difficulty from formations, readability.
+6. **Showcase videos (plan 0):** deterministic bot campaigns, the showcase bot, the recorder's takes and the editor.
+7. **Plan 1:** scarce power (one POW a level, 3 per location, back to SINGLE with nothing given back), fuller
+   screens (the lull filler fixed, the wave pull), enemy fire to dodge, boss timers and bigger boss deaths, a longer
+   medal ladder.
 
 ## 14. Open work
 
-1. **Playtest by people:** a lost ship and getting the power back; whether the chain and medals are worth chasing;
-   location 5 (`?loc=5`); name entry on a phone and with a gamepad.
-2. **Empty screens:** with the showcase bot, no enemy is on screen in 35–50% of the samples in locations 1–4 (27% in
-   location 5); hazard sections are the emptiest (geysers 65%, storm 62%, battleship 61%). Waves run on fixed
-   timelines, so a fast player waits. Pull a section's wave clock forward when the screen has been empty for about a
-   second, and add waves on top of the hazards.
-3. **Location 5's wall:** the Dreadnought escapes in 13 of 14 showcase campaigns with no visible timer, so the run
-   ends on the escape screen. Show the time left, and say on the escape screen how close it was. The Gatekeeper
-   escapes in 14 of 14 with 0–2 of 6 turrets down: check that people can read and hit the turrets.
-4. **Lulls:** gaps with no kill of 15–33 s remain. First fix the lull filler: `director()` in `game.js` skips it
-   whenever `st.stageEnding`, which is true for the whole last section; it should skip only the tally
-   (`!(st.stageEnding && st.remaining <= TRANSIT)`). Then re-measure.
-5. **Formations:** entries from behind with a 1.2 s warning, side columns of 5, rammers that lead the ship.
-6. **Bomb readability:** reads well on video in location 5 (the cyan ring); in the location 4 cavern it is a faint
+1. **Playtest by people** (plan 1 §2.8): does a lost ship feel like a loss without feeling like the run is over; is
+   FULL worth the climb; location 1 with 2 POWs; the boss timer; the loud medal miss; the Gatekeeper's turrets; the
+   three location 1 lessons the bot times out of (aimed fire, roll, laser); location 5 (`?loc=5`); name entry on a
+   phone and with a gamepad.
+2. **Empty screens at FULL:** a strong player at FULL still clears a wave in a second or two: no enemy on screen in
+   37–46% of locations 2–4 (16–30% when below FULL); the worst sections are about 40% (the nebula's edge, the
+   cavern, the geysers). Next: more pairs of waves at once in those sections, as location 5 does.
+3. **The Gatekeeper** escapes in 14 of 14 campaigns with 90–100% of its hull: the bots don't hurt the turning ring.
+   Check with people (the turrets now carry beacons) before changing its hp.
+4. **Location 1's shoot-down ratio:** the expert gets 78–81% (target 85%): the tutorial is flown at SINGLE to QUAD,
+   and fast formations get past. Its grades are harder than before.
+5. **Hits from enemy fire:** 15% of the hits in locations 2–4 (target 30%); beams, lightning and flares still lead.
+   Enemy fire bites when you're below FULL (about 2–3 bullets on screen), much less at FULL.
+6. **Extra ships:** every campaign reaches 5–6 of the 6 score thresholds, so a run has up to 9 ships before a
+   continue. If lost ships should cost more, raise `EXTRA_LIVES` (`game.js`).
+7. **Formations:** entries from behind with a 1.2 s warning, side columns of 5, rammers that lead the ship.
+8. **Bomb readability:** reads well on video in location 5 (the cyan ring); in the location 4 cavern it is a faint
    wave in the dark.
-7. **Tech:** merge hulk draw calls (41 in the refinery), whole-game loudness, gamepad focus on the location clear and
+9. **Tech:** merge hulk draw calls (41 in the refinery), whole-game loudness, gamepad focus on the location clear and
    star map screens.
-8. **Not tested yet:** a real phone and a real gamepad.
-9. **Goals once power is full:** FULL comes at 4:14, and SPIRAL or FULL holds for 93–100% of locations 2–4; the
-   medal ladder tops out after six catches. Give extra POWs a use, keep the ladder climbing past 5,000, and make a
-   missed medal loud.
-10. **Threat and spectacle in locations 2–4:** 0.2–0.9 enemy bullets on screen (most hits come from hazards), bosses
-    that never take a ship, hulks that pass far away, small boss deaths. Numbers and ideas: `ai/next_0.md`.
+10. **Not tested yet:** a real phone and a real gamepad.
+11. **Returning players** (next_0 item 10, not planned): every run starts at 1-1 with the 8-minute tutorial.
+12. **The showcase videos** show the game before plan 1 (fast FULL, wreck POWs): a re-shoot is about 7 h of machine
+    time (`ai/next_0.md`).
 
 ## 15. Working conventions
 

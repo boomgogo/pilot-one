@@ -57,6 +57,7 @@ const TIPS = {
   evadeLeft: per((d) => `${EVADE[d]} to roll through`),
   bombNow: per((d) => `${BOMB[d]} clears bullets`),
   lastShield: 'One more hit costs a ship. Shield pickups restore it',
+  medal: 'MEDAL LOST: catch every medal and its value keeps climbing',
   deflect: per((d) => `Roll to match them: ${ROLL[d]}`),
 };
 

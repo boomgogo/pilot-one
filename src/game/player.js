@@ -359,7 +359,8 @@ export class Player {
         _dir.copy(_fwd).applyAxisAngle(_up, -side * CONE).multiplyScalar(SHOT_SPEED);
         // spread off the centre line: homing turns it with the rest of the volley
         _off.copy(_fwd).multiplyScalar(-SHOT_SPEED).add(_dir);
-        g.shots.spawn(_v.x, _v.y, _v.z, _dir.x, _dir.y, _dir.z, 1, 0, SHOT_LIFE, g.lockEnemy, _nose.x, _nose.y, _nose.z, _off.x, _off.y, _off.z);
+        // at FULL the outer streams (this cone, the drone bolts) are drawn thin, so they don't hide the targets
+        g.shots.spawn(_v.x, _v.y, _v.z, _dir.x, _dir.y, _dir.z, 1, lv >= LV.FULL ? 2 : 0, SHOT_LIFE, g.lockEnemy, _nose.x, _nose.y, _nose.z, _off.x, _off.y, _off.z);
       }
     }
     if (lv >= LV.FULL) for (const p of this.dronePos) this._bolt(p, 1, false);
@@ -430,8 +431,8 @@ export class Player {
     this.shield = 0;
     this.lives -= 1;
     if (this.power > 0) g.tm?.event('power', { level: 0, lost: this.power });
-    this.lostPower = this.power; // some of it waits at the wreck (Game.onRespawn)
-    this.power = 0; // a lost ship starts again from a single bolt (prompt_2)
+    this.lostPower = this.power; // for telemetry (Game.onRespawn): how much the climb back has to win
+    this.power = 0; // a lost ship starts again from a single bolt, with nothing given back (ai/summary.md §6.1)
     this.respawnT = 2.4;
     this.shake = 2.5;
     g.fx.explosion(this.pos.x, this.pos.y, this.pos.z, 2.2, PAL.cyan, 0);

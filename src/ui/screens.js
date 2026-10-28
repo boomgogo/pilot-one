@@ -110,7 +110,7 @@ export function showEnding(res, locations, fmt) {
   $('end-title').textContent = res.good ? 'THE DREADNOUGHT IS DOWN' : 'THE DREADNOUGHT ESCAPED';
   $('end-text').textContent = res.good
     ? 'The corona falls quiet behind you. The fleet turns for home, and every ship in it knows who brought it there.'
-    : 'It slipped away into the glare. The fleet holds the line, and waits for another pilot to try.';
+    : `It got away with ${Math.max(1, Math.round((res.hull || 0) * 100))}% of its hull, into the glare. The fleet holds the line, and waits for another pilot to try.`;
   const m = Math.floor(res.seconds / 60);
   const sec = Math.floor(res.seconds % 60);
   const rows = [];

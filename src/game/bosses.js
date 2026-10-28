@@ -13,6 +13,7 @@ const _side = new Vector3();
 const _vert = new Vector3();
 const _q = new Quaternion();
 const FACE = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI); // nose (-Z) toward the player (+Z)
+const DYING_T = 3; // a boss's death: chained explosions, then the final blast
 
 // Boss definitions. A location lists its bosses (data.bossDefs); later locations bring their own, with their own
 // behaviour hooks (def.move, def.attack, def.coreVulnerable, def.start), so their code loads with the location.
@@ -27,7 +28,7 @@ export const CRUISER = {
       turret3: { hp: 30, r: 2.6 },
       core: { hp: 140, r: 3.2, core: true },
     },
-    score: 10000, partScore: 1000, drops: ['pow', 'shield'],
+    score: 10000, partScore: 1000, drops: ['shield'], boom: 4,
 };
 
 export const MOTHERSHIP = {
@@ -40,7 +41,7 @@ export const MOTHERSHIP = {
       bayR: { hp: 40, r: 4.2 },
       core: { hp: 300, r: 5.0, core: true },
     },
-    score: 50000, partScore: 2500, drops: ['pow', 'bomb'],
+    score: 50000, partScore: 2500, drops: ['bomb'], boom: 6,
 };
 
 /** True if the model has every destructible part the boss logic needs. */
@@ -101,6 +102,7 @@ export class Boss {
     this.launchT = 4;
     this.beamT = 3;
     this.coreT = 1;
+    this.aimT = 2; // location 2–4 bosses: the core's aimed spread (src/data/locations)
     this.dyingT = 0;
     this.bayCount = 0;
     this.game.beams.clearOwner(this);
@@ -148,11 +150,14 @@ export class Boss {
       } else {
         this.pos.set(12 * Math.sin(tt * 0.3), d.hold.y + 6 * Math.sin(tt * 0.45), d.hold.z + 18 * Math.sin(tt * 0.21));
       }
+      if (t > this.timeLimit - 10 && t - dt <= this.timeLimit - 10) g.audio?.lockWarn(); // 10 s left
       if (t > this.timeLimit) {
-        g.tm?.event('boss', { name: this.name, escaped: true, hp: Math.round(this.hp), bt: +t.toFixed(1) });
+        const hull = this.hp / this.maxHp;
+        g.tm?.event('boss', { name: this.name, escaped: true, hp: Math.round(this.hp), max: Math.round(this.maxHp), bt: +t.toFixed(1) });
         this.state = 'retreat';
         this.retreatT = 0;
-        g.hud.banner(this.name + ' ESCAPED', 2);
+        // how close it was (ai/summary.md §7.3)
+        g.hud.banner(`${this.name} ESCAPED\n${Math.max(1, Math.round(hull * 100))}% HULL LEFT`, 2.4);
       }
       if (!g.fireHeld) this.attack(dt); // over the stage's bullet cap: its guns wait (ai/summary.md §7.2)
     } else if (this.state === 'retreat') {
@@ -161,19 +166,27 @@ export class Boss {
       this.pos.y += 30 * dt;
       if (this.pos.z < -1400) this.finish(false);
     } else if (this.state === 'dying') {
+      // every boss goes down the same way (ai/summary.md §7.3): DYING_T s of explosions chained across the hull,
+      // growing as they go, then the final blast, a ring the size of the boss and a white-out
       this.dyingT += dt;
+      const k = Math.min(1, this.dyingT / DYING_T);
+      const R = d.bodyR * d.scale;
       this.pos.z -= 8 * dt;
       this.pos.y -= 3 * dt;
-      if (Math.random() < dt * 14) {
-        _v.set((Math.random() - 0.5) * d.bodyR * 2, (Math.random() - 0.5) * d.bodyR, (Math.random() - 0.5) * d.bodyR * 1.5).add(this.pos);
-        g.fx.explosion(_v.x, _v.y, _v.z, 1.6 + Math.random() * 1.6, PAL.fire, 5);
-        g.audio?.explosion(1.2);
+      // the shake builds every frame, not per explosion: the bot sees through the camera, and a run must replay
+      // exactly from its seed (ai/plan_0.md §3.3). The explosions themselves are only effects
+      g.shakeCamera(0.4 + 1.4 * k);
+      if (Math.random() < dt * (10 + 8 * k)) {
+        _v.set((Math.random() - 0.5) * R * 1.6, (Math.random() - 0.5) * R * 0.8, (Math.random() - 0.5) * R * 1.2).add(this.pos);
+        g.fx.explosion(_v.x, _v.y, _v.z, (1.4 + 2 * k) * (0.7 + 0.6 * Math.random()), PAL.fire, 5);
+        g.audio?.explosion(1.2 + k);
       }
-      if (this.dyingT > 2.4) {
-        g.fx.bigExplosion(this.pos.x, this.pos.y, this.pos.z, d.boom ?? (this.type === 'mothership' ? 5 : 3));
+      if (this.dyingT > DYING_T) {
+        g.fx.bigExplosion(this.pos.x, this.pos.y, this.pos.z, d.boom ?? 4);
+        g.fx.ring(this.pos.x, this.pos.y, this.pos.z, R * 2.4, PAL.hot, 1.2, 0.85);
         g.audio?.explosion(3);
-        g.shakeCamera(2.5);
-        g.flashScreen(0.8);
+        g.shakeCamera(3);
+        g.flashScreen(1);
         this.finish(true);
         return;
       }
@@ -403,9 +416,19 @@ export class Boss {
     this.group.visible = false;
     g.beams.clearOwner(this);
     if (killed) {
-      for (const [i, type] of this.def.drops.entries()) g.dropPickup(type, this.pos.x + (i - 0.5) * 8, this.pos.y, this.pos.z);
+      for (const [i, type] of this.def.drops.entries()) g.dropPickup(type, this.pos.x + (i - 0.5) * 8, this.pos.y, this.pos.z, 'boss');
     }
     g.onBossDone(this, killed);
+  }
+
+  /** def.beacons: a warm beacon on each live turret, so they read while the boss turns (the Gatekeeper's ring). */
+  glow(glows, time) {
+    if (!this.active || !this.def.beacons || this.state === 'dying') return;
+    for (const p of this.parts) {
+      if (!p.alive || p.core) continue;
+      const k = 0.55 + 0.25 * Math.sin(time * 5 + p.offset.x);
+      glows.push(p.world.x, p.world.y, p.world.z, 0, 0, 0, 1, 0.62, 0.3, k, p.r * 1.25, SHAPE.GLOW);
+    }
   }
 
   draw(time) {

@@ -149,11 +149,12 @@ export class PlayerShots {
     bb.begin();
     for (let i = 0; i < this.n; i++) {
       const i3 = i * 3;
-      const drone = this.kind[i] === 1;
+      // kind 0: the main stream; 1: drone bolts and 2: FULL's cone, the outer streams, thin and dim (looks only)
+      const kind = this.kind[i];
       const fade = Math.min(1, this.life[i] / 0.3); // shrink and fade instead of popping at the end of range
       const k = TAIL_TIME * (0.4 + 0.6 * fade) * Math.min(1, this.age[i] / TAIL_TIME); // no tail behind the muzzle
       bb.push(this.p[i3], this.p[i3 + 1], this.p[i3 + 2], this.v[i3] * k, this.v[i3 + 1] * k, this.v[i3 + 2] * k,
-        drone ? 0.62 : 0.45, drone ? 0.7 : 0.9, 1.0, fade, (drone ? 0.32 : 0.4) * (0.5 + 0.5 * fade), SHAPE.BOLT);
+        kind === 1 ? 0.62 : 0.45, kind === 1 ? 0.7 : 0.9, 1.0, kind ? fade * 0.55 : fade, (kind ? 0.24 : 0.4) * (0.5 + 0.5 * fade), SHAPE.BOLT);
     }
     bb.end();
   }

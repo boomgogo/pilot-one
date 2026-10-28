@@ -15,6 +15,10 @@ const _q = new Quaternion();
 const _s = new Vector3(1, 1, 1);
 const _v = new Vector3();
 const _axis = new Vector3(0, 1, 0);
+// A POW flies to the ship (ai/summary.md §6.1): after HOME_T s it homes, fast while far, arriving within about 2 s
+const HOME_T = 0.4;
+const HOME_K = 2; // 1/s: closing speed per unit of distance
+const HOME_MIN = 60; // u/s
 
 export class Pickups {
   constructor(game, geometry, material, cap = 20) {
@@ -33,8 +37,8 @@ export class Pickups {
     this.items.length = 0;
   }
 
-  /** wreck: POWs left by a lost ship (Game.onRespawn): a wider magnet, so one pass catches most of them. */
-  spawn(type, x, y, z, wreck = false) {
+  /** src (telemetry): what dropped it ('red', 'gunship', 'supply', 'hulk', 'boss'; medals: none). */
+  spawn(type, x, y, z, src = '') {
     if (this.items.length >= this.cap) return;
     // inside the play box: a drop from a hulk off to the side would otherwise be out of reach
     const c = this.game.corridor;
@@ -42,8 +46,8 @@ export class Pickups {
       x = Math.max(-c.x * 0.9, Math.min(c.x * 0.9, x));
       y = Math.max(-c.y * 0.9, Math.min(c.y * 0.9, y));
     }
-    this.game.tm?.event('drop', { type, wreck });
-    this.items.push({ type, pos: new Vector3(x, y, Math.min(z, -30)), vel: new Vector3(0, 0, 18), t: 0, magnet: wreck ? 24 : 16 });
+    this.game.tm?.event('drop', src ? { type, src } : { type });
+    this.items.push({ type, pos: new Vector3(x, y, Math.min(z, -30)), vel: new Vector3(0, 0, 18), t: 0, magnet: 16, home: type === 'pow' });
   }
 
   update(dt) {
@@ -54,7 +58,11 @@ export class Pickups {
       it.t += dt;
       _v.subVectors(p.pos, it.pos);
       const d = _v.length();
-      if (p.alive && d < it.magnet) {
+      if (it.home && p.alive && it.t > HOME_T) {
+        // homing: steer onto the ship at a speed that shrinks with the distance
+        _v.multiplyScalar(Math.max(HOME_MIN, d * HOME_K) / Math.max(d, 1e-3));
+        it.vel.lerp(_v, Math.min(1, dt * 8));
+      } else if (p.alive && d < it.magnet) {
         // magnet
         it.vel.addScaledVector(_v.normalize(), 140 * dt);
         it.vel.multiplyScalar(Math.exp(-2 * dt));

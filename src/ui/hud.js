@@ -20,6 +20,9 @@ export class Hud {
       bossBar: $('boss-bar'),
       bossName: document.querySelector('#boss-bar .name'),
       bossFill: document.querySelector('#boss-bar .fill'),
+      bossClock: document.querySelector('#boss-bar .clock'),
+      bossClockFill: document.querySelector('#boss-bar .clock > i'),
+      bossSecs: document.querySelector('#boss-bar .secs'),
       banner: $('banner'),
       hint: $('hint'),
       stage: $('hud-stage'),
@@ -53,7 +56,10 @@ export class Hud {
     this.dirV = 0;
     this.prev = {};
     this.bannerT = 0;
+    this.bannerWarn = false;
+    this.bannerLow = false;
     this.hintT = 0;
+    this.medalLostT = 0;
     this.tallyT = 0;
     this.counts = []; // tally rows counting up: {el, v, t}
     this.stageCardT = 0;
@@ -99,12 +105,28 @@ export class Hud {
     el.innerHTML = html;
   }
 
-  banner(text, time = 2, warn = false) {
+  /**
+   * The banner, one message at a time (location card > stage card > warning > pickup). low: a pickup's banner, which
+   * gives way to the cards and to a warning: returns false then, and the caller shows a popup instead.
+   */
+  banner(text, time = 2, warn = false, low = false) {
+    if (low && (this.locCardT > 0 || (this.stageCardT > 0 && this.stageCardDelay <= 0) || (this.bannerT > 0 && this.bannerWarn))) return false;
     const b = this.el.banner;
     b.textContent = text;
     b.classList.toggle('warn', warn);
     b.classList.add('show');
     this.bannerT = time;
+    this.bannerWarn = warn;
+    this.bannerLow = low;
+    return true;
+  }
+
+  /** A medal got past: the medal value flashes red (ai/summary.md §6.3). */
+  medalLost() {
+    this.medalLostT = 1.4;
+    const m = this.el.medal;
+    m.textContent = 'MEDAL LOST';
+    m.classList.add('lost');
   }
 
   /** Hint line under the ship. [KEY] is drawn as a key cap; cls 'ok' = a lesson just done. */
@@ -117,6 +139,7 @@ export class Hud {
 
   clearMessages() {
     this.bannerT = this.hintT = this.tallyT = this.stageCardT = this.locCardT = 0;
+    this.bannerWarn = this.bannerLow = false;
     this.stageCardDelay = 0;
     this.counts.length = 0;
     this.el.banner.classList.remove('show');
@@ -140,7 +163,19 @@ export class Hud {
     c.children[2].textContent = sub;
     this.stageCardDelay = delay;
     this.stageCardT = delay + 2.6;
-    if (delay <= 0) c.classList.add('show');
+    // a new stage: the last one's hints are stale (the new stage's lesson hints come after this)
+    this.hintT = 0;
+    this.el.hint.classList.remove('show');
+    if (delay <= 0) this._showStageCard();
+  }
+
+  /** The stage card takes the screen: a pickup banner gives way. */
+  _showStageCard() {
+    this.el.stageCard.classList.add('show');
+    if (this.bannerLow && this.bannerT > 0) {
+      this.bannerT = 0;
+      this.el.banner.classList.remove('show');
+    }
   }
 
   /** The location's title card: "LOCATION 2" / its name / its subtitle. */
@@ -228,6 +263,11 @@ export class Hud {
     if (s.bossActive) {
       this._set('bossName', s.bossName, (v) => (e.bossName.textContent = v));
       this._set('bossHp', Math.round(s.bossHp * 200), (v) => (e.bossFill.style.width = v / 2 + '%'));
+      // the time it has left before it escapes: a draining strip, and the seconds in the last 15 (-1: going down)
+      const left = s.bossLeft;
+      this._set('bossClock', left < 0 ? -1 : Math.round((left / Math.max(1, s.bossTime)) * 200), (v) => (e.bossClockFill.style.width = Math.max(0, v) / 2 + '%'));
+      this._set('bossLow', left >= 0 && left <= 15, (v) => e.bossClock.classList.toggle('low', v));
+      this._set('bossSecs', left >= 0 && left <= 15 ? Math.ceil(left) : -1, (v) => (e.bossSecs.textContent = v >= 0 ? `ESCAPES IN ${v}` : ''));
     }
     // roll dial: tick shows "rail up", notch shows the nearest inverted wing's up (top = aligned)
     const deg = (s.roll * 180) / Math.PI;
@@ -258,7 +298,13 @@ export class Hud {
       this._set('chain', s.chain * 10 + s.chainMul, () => (e.chainN.textContent = `${s.chain} CHAIN${s.chainMul > 1 ? ' ×' + s.chainMul : ''}`));
       this._set('chainK', Math.round(s.chainK * 40), (v) => (e.chainBar.style.width = (v * 2.5).toFixed(0) + '%'));
     }
-    this._set('medal', s.medal, (v) => (e.medal.textContent = v > 100 ? 'MEDAL ' + formatScore(v) : ''));
+    if (this.medalLostT > 0) {
+      this.medalLostT -= dt;
+      if (this.medalLostT <= 0) {
+        e.medal.classList.remove('lost');
+        delete this.prev.medal;
+      }
+    } else this._set('medal', s.medal, (v) => (e.medal.textContent = v > 100 ? 'MEDAL ' + formatScore(v) : ''));
     this._set('laserOn', s.laserT > 0, (v) => e.laser.classList.toggle('hidden', !v));
     if (s.laserT > 0) this._set('laserT', Math.ceil(s.laserT * 20), (v) => (e.laserFill.style.width = Math.min(100, v / 1.6) + '%'));
     if (this.hitV > 0.001 || this.prev.hitOn) {
@@ -299,7 +345,7 @@ export class Hud {
       this.stageCardT -= dt;
       if (this.stageCardDelay > 0) {
         this.stageCardDelay -= dt;
-        if (this.stageCardDelay <= 0) e.stageCard.classList.add('show');
+        if (this.stageCardDelay <= 0) this._showStageCard();
       }
       if (this.stageCardT <= 0) e.stageCard.classList.remove('show');
     }

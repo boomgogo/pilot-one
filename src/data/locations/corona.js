@@ -102,7 +102,7 @@ const HULKS = {
 
 const GATEKEEPER = {
   type: 'gatekeeper', name: 'GATEKEEPER', model: 'gatekeeper', bodyR: 10, hullR: 7, hold: { x: 0, y: 3, z: -210 }, enterFrom: -760,
-  scale: 1.2, pitch: 0, spin: 0.35, boom: 4, hpScale: 1.6, score: 30000, partScore: 1500, drops: ['pow'],
+  scale: 1.2, pitch: 0, spin: 0.35, boom: 6, hpScale: 1.6, score: 30000, partScore: 1500, drops: ['bomb'], beacons: true,
   parts: Object.fromEntries([...Array.from({ length: 6 }, (_, i) => [`t${i}`, { hp: 26, r: 4.2 }]), ['core', { hp: 220, r: 6, core: true }]]),
   coreVulnerable: (b) => b.phase >= 2,
   move(b, tt) {
@@ -148,8 +148,10 @@ const GATEKEEPER = {
 // everything at once with the star's flares. The music turns from C minor to C major as it falls.
 
 const DREADNOUGHT = {
-  type: 'dreadnought', name: 'DREADNOUGHT', model: 'dreadnought', bodyR: 30, hullR: 14, hold: { x: 0, y: 6, z: -225 }, enterFrom: -900,
-  scale: 1.45, pitch: 0.3, boom: 7, hpScale: 4, score: 100000, partScore: 4000, drops: [], final: true, launches: true,
+  // the biggest thing in the game, held farther back so it fills the view without crowding the corridor (hullR is in
+  // world units: scaled by hand with `scale`)
+  type: 'dreadnought', name: 'DREADNOUGHT', model: 'dreadnought', bodyR: 30, hullR: 21, hold: { x: 0, y: 6, z: -270 }, enterFrom: -1000,
+  scale: 2.2, pitch: 0.3, boom: 8, hpScale: 1.55, score: 100000, partScore: 4000, drops: [], final: true, launches: true,
   parts: {
     wingL: { hp: 60, r: 6 }, wingR: { hp: 60, r: 6 },
     hangarL: { hp: 46, r: 5.5 }, hangarR: { hp: 46, r: 5.5 },
@@ -390,7 +392,7 @@ const location = {
             { at: 5, f: 'vee', type: 'wasp', n: 5, ...fast },
             { at: 9, f: 'helix', type: 'dart', n: 10 },
             { at: 13, f: 'hold', type: 'hammer', n: 1, weapon: 'shells' },
-            { at: 15, f: 'snake', type: 'wasp', n: 5, ...redFast },
+            { at: 15, f: 'snake', type: 'wasp', n: 5, speedMul: 1.2 },
             { at: 21, f: 'swarm', type: 'miner', n: 14, dx: 10 },
             { at: 25, f: 'overtake', type: 'dart', n: 5 },
             { at: 25.5, f: 'overtake', type: 'dart', n: 5, mirror: true },
@@ -420,7 +422,7 @@ const location = {
             { at: 7, f: 'vee', type: 'wasp', n: 5, ...fast },
             { at: 11, f: 'helix', type: 'dart', n: 10 },
             { at: 14, hazard: 'flare' },
-            { at: 17, f: 'snake', type: 'dart', n: 5, ...redFast },
+            { at: 17, f: 'snake', type: 'dart', n: 5, speedMul: 1.2 },
             { at: 23, f: 'overtake', type: 'wasp', n: 4 },
             { at: 23.5, f: 'overtake', type: 'wasp', n: 4, mirror: true },
             { at: 26, hazard: 'flare', speed: 170 },
@@ -484,7 +486,7 @@ const location = {
             { at: 9, hulk: 'plate', x: 30, y: -56 },
             { at: 12, f: 'helix', type: 'dart', n: 10 },
             { at: 16, hulk: 'plate', x: -10, y: -54 },
-            { at: 18, f: 'snake', type: 'dart', n: 5, ...redFast },
+            { at: 18, f: 'snake', type: 'dart', n: 5, speedMul: 1.2 },
             { at: 24, hulk: 'plate', x: 34, y: -58 },
             { at: 26, f: 'overtake', type: 'wasp', n: 5 },
             { at: 26.5, f: 'overtake', type: 'wasp', n: 5, mirror: true },
@@ -513,7 +515,7 @@ const location = {
           id: 'gatekeeper', from: 's6', to: 's7', duration: 70, boss: 'gatekeeper', bossTime: 52, rocks: { kind: 'slag', target: 2 },
           waves: [
             { at: 2.4, msg: 'WARNING\nGATEKEEPER', warn: true, msgT: 2.4 },
-            { at: 14, f: 'snake', type: 'wasp', n: 5, ...redFast, dy: 12 },
+            { at: 14, f: 'snake', type: 'wasp', n: 5, speedMul: 1.2, dy: 12 },
             { at: 24, f: 'vee', type: 'shade', n: 5, dy: 12 },
             { at: 34, hazard: 'flare' },
             { at: 40, f: 'sweep', type: 'wasp', n: 5, dy: -12, ...fast },
@@ -534,7 +536,7 @@ const location = {
             { at: 8, hulk: 'mirror', x: -84, y: 12, z: -760, speed: 26 },
             { at: 9, f: 'helix', type: 'shade', n: 8 },
             { at: 12, hazard: 'flare', speed: 190 },
-            { at: 14, f: 'snake', type: 'wasp', n: 5, ...redFast },
+            { at: 14, f: 'snake', type: 'wasp', n: 5, speedMul: 1.2 },
             { at: 19, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles', dx: -12 },
             { at: 19.5, f: 'hold', type: 'hammer', n: 1, weapon: 'laser', dx: 12, mirror: true },
             { at: 22, hazard: 'crossfire', n: 2 },
@@ -564,10 +566,10 @@ const location = {
           id: 'dreadnought', from: 'boss', to: 'dock', duration: 95, boss: 'dreadnought', bossTime: 86, song: 'final', rocks: { kind: 'slag', target: 2 },
           waves: [
             { at: 2.4, msg: 'WARNING\nDREADNOUGHT', warn: true, msgT: 2.8 },
-            { at: 16, f: 'snake', type: 'wasp', n: 5, ...redFast, dy: 12 },
+            { at: 16, f: 'snake', type: 'wasp', n: 5, speedMul: 1.2, dy: 12 },
             { at: 30, f: 'vee', type: 'shade', n: 5, dy: 12 },
             { at: 44, f: 'sweep', type: 'wasp', n: 5, dy: -12, ...fast },
-            { at: 58, f: 'snake', type: 'dart', n: 5, ...redFast, mirror: true, dy: -10 },
+            { at: 58, f: 'snake', type: 'dart', n: 5, speedMul: 1.2, mirror: true, dy: -10 },
             { at: 72, f: 'dive', type: 'shade', n: 5 },
           ],
         },

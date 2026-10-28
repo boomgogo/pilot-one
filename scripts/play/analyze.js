@@ -7,6 +7,7 @@
 //   node scripts/play/analyze.js chart <a.video.json> <b.video.json> ... [--file out.svg]
 //   node scripts/play/analyze.js highlights <take dir> [--top 12]
 //   node scripts/play/analyze.js highlights --rank <take dir> <take dir> ...
+//   node scripts/play/analyze.js campaign <take dir> <take dir> ... [--label name]
 //
 // "video" measures the same things on every video, from pixels and sound only (so any two videos are
 // comparable): motion energy over time, explosion/flash events, audio onsets (shots, hits, explosions), loudness
@@ -17,6 +18,9 @@
 // highlights.json: tagged moments (power, aligned, evade, bomb, boss-part, boss-kill, hulk, chain4, medal5k, stage-S,
 // locclear, section:<id>, intensity) and windows to avoid (lost ships, hits, lessons, lulls), each with its game
 // time, video segment and frame, for the video editor (scripts/play/edit.js). --rank scores takes for showcase use.
+// "campaign" reads whole-campaign takes (record.js --campaign) and tabulates the ai/plan_1.md §3 targets per run: the
+// first FULL, time at each power level, the climb back after a lost ship, POWs caught, empty screens, enemy fire, the
+// longest gap with no kill, bosses, extra ships.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -648,11 +652,163 @@ function highlights(dirs) {
   writeFileSync(join(OUT, `rank-${sizes}.json`), JSON.stringify(rows, null, 1));
 }
 
+// ------------------------------------------------------------------------------------------------
+// campaign (ai/plan_1.md §3): power over a whole run, empty screens, enemy fire, bosses, for several takes at once
+
+const EXTRA_LIVES = [150000, 450000, 900000, 1500000, 2250000, 3000000]; // src/game/game.js
+const ENEMY_FIRE = new Set(['bullet', 'shell', 'missile']);
+const median = (a) => (a.length ? stats(a).p50 : null);
+
+function campaignRun(dir) {
+  const { meta, tm, C } = readTake(dir);
+  const E = tm.events;
+  const S = tm.samples;
+  const t0 = S.length ? S[0][C.t] : 0;
+  // location at time t, from the stage events
+  const marks = E.filter((e) => e.ev === 'stage' && e.loc).map((e) => [e.t, e.loc]);
+  const locAt = (t) => {
+    let l = 1;
+    for (const [mt, ml] of marks) if (mt <= t) l = ml;
+    return l;
+  };
+  const L = (n) => (out.loc[n] ||= { samples: 0, empty: 0, lv: [0, 0, 0, 0, 0, 0], drops: {}, caught: 0, hits: 0, enemyHits: 0, lost: 0, pulls: 0 });
+  const out = { take: basename(dir), skill: meta.skill, seed: meta.seed, end: meta.endReason, loc: {} };
+  const sections = {};
+  const l1late = [];
+  for (const r of S) {
+    if (!r[C.alive]) continue;
+    const o = L(r[C.loc]);
+    o.samples++;
+    o.lv[r[C.power]]++;
+    if (!r[C.enemies]) o.empty++;
+    const sk = `${r[C.loc]}:${r[C.section]}`;
+    const so = (sections[sk] ||= { n: 0, empty: 0 });
+    so.n++;
+    if (!r[C.enemies]) so.empty++;
+    if (r[C.loc] === 1 && r[C.stage] >= 4) l1late.push(r[C.bullets] + (r[C.shells] || 0) + (r[C.missiles] || 0));
+  }
+  // power: the first FULL, and the climb back after each lost ship
+  const pw = E.filter((e) => e.ev === 'power');
+  const firstFull = pw.find((e) => e.level === 5);
+  const back = { full: [], fullOpen: 0, before: [], beforeOpen: 0 };
+  pw.forEach((e, i) => {
+    if (!e.lost) return;
+    const again = pw.slice(i + 1).find((f) => f.lost || f.level >= e.lost);
+    const ok = again && !again.lost;
+    const k = e.lost === 5 ? 'full' : null;
+    if (k) ok ? back.full.push(again.t - e.t) : back.fullOpen++;
+    if (e.lost >= 4) ok ? back.before.push(again.t - e.t) : back.beforeOpen++;
+  });
+  // POWs: drops by source and catches, drop-to-pickup time
+  const powDrop = [];
+  const toPickup = [];
+  for (const e of E) {
+    const o = L(locAt(e.t));
+    if (e.ev === 'drop' && e.type === 'pow') {
+      const src = e.src || (e.wreck ? 'wreck' : '?');
+      o.drops[src] = (o.drops[src] || 0) + 1;
+      powDrop.push([e.t, src]);
+    } else if (e.ev === 'pickup' && e.type === 'pow') {
+      o.caught++;
+      const d = powDrop.shift();
+      if (d && d[1] !== 'wreck') toPickup.push(e.t - d[0]);
+    } else if (e.ev === 'hit') {
+      o.hits++;
+      if (ENEMY_FIRE.has(e.src)) o.enemyHits++;
+      if (e.shield <= 0) o.lost++;
+    } else if (e.ev === 'pull') o.pulls++;
+  }
+  // bosses: fight time (from its start, entry included) or the hull it escaped with
+  const bosses = [];
+  for (const e of E) {
+    if (e.ev !== 'boss') continue;
+    if (e.core) bosses.push({ name: e.name, killed: e.bt });
+    else if (e.escaped) bosses.push({ name: e.name, escaped: e.max ? +(e.hp / e.max).toFixed(2) : null, hp: e.hp });
+  }
+  // extra ships: upward crossings of the thresholds (a continue resets the score)
+  let extra = 0;
+  let prev = 0;
+  for (const r of S) {
+    const sc = r[C.score];
+    for (const th of EXTRA_LIVES) if (prev < th && sc >= th) extra++;
+    prev = sc;
+  }
+  const stages = stageTable(tm, C);
+  out.locTable = locationTable(stages);
+  out.firstFull = firstFull ? +((firstFull.t - t0) / 60).toFixed(2) : null;
+  out.back = back;
+  out.toPickup = toPickup;
+  out.l1lateBullets = stats(l1late);
+  out.sections = sections;
+  out.bosses = bosses;
+  out.extra = extra;
+  out.medals = { caught: E.filter((e) => e.ev === 'pickup' && e.type === 'medal').length, missed: E.filter((e) => e.ev === 'medalmiss').length };
+  out.continues = E.filter((e) => e.ev === 'over').length - (meta.endReason === 'game over' ? 1 : 0);
+  out.reached = Math.max(0, ...S.map((r) => r[C.loc]));
+  out.minutes = +((S.length ? S[S.length - 1][C.t] - t0 : 0) / 60).toFixed(1);
+  out.dread = bosses.find((b) => /DREADNOUGHT/.test(b.name)) || null;
+  return out;
+}
+
+/** What an escaped boss had left: its hull share (or its hp, in recordings from before plan 1). */
+const bossLeft = (b) => (b.escaped !== null ? `${Math.round(b.escaped * 100)}%` : `${b.hp}hp`);
+
+function campaign(dirs) {
+  const runs = dirs.map(campaignRun);
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) : null);
+  const share = (o, from) => (o ? pct(o.lv.slice(from).reduce((x, y) => x + y, 0), o.samples) : null);
+  const mid = (r, f) => [2, 3, 4].map((l) => f(r.loc[l], l));
+  const rows = runs.map((r) => {
+    const sum = (k) => [2, 3, 4].reduce((a, l) => a + (r.loc[l]?.[k] || 0), 0);
+    const lt = Object.fromEntries(r.locTable.map((o) => [o.loc, o]));
+    return {
+      run: `${r.skill} s${r.seed}`,
+      end: r.end,
+      reached: r.reached,
+      cont: r.continues,
+      min: r.minutes,
+      firstFull: r.firstFull,
+      'FULL% L2-4': mid(r, (o) => share(o, 5)).join(' '),
+      'SPIRAL+% L2-4': mid(r, (o) => share(o, 4)).join(' '),
+      'backFULL s': r.back.full.map((s) => Math.round(s)).join(' ') + (r.back.fullOpen ? ` +${r.back.fullOpen} never` : ''),
+      'POW caught L1-5': [1, 2, 3, 4, 5].map((l) => r.loc[l]?.caught ?? '-').join(' '),
+      'pow→ship s': median(r.toPickup),
+      'empty% L1-4': [1, 2, 3, 4].map((l) => (r.loc[l] ? pct(r.loc[l].empty, r.loc[l].samples) : '-')).join(' '),
+      'noKill L1-4': [1, 2, 3, 4].map((l) => lt[l]?.noKillMax ?? '-').join(' '),
+      'bullets L1late': r.l1lateBullets.mean,
+      'bullets L2-4': [2, 3, 4].map((l) => lt[l]?.bulletsMean ?? '-').join(' '),
+      'eFire% L2-4': pct(sum('enemyHits'), sum('hits')),
+      'shotDown L1-4': [1, 2, 3, 4].map((l) => lt[l]?.shotDown ?? '-').join(' '),
+      'lost L1-5': [1, 2, 3, 4, 5].map((l) => r.loc[l]?.lost ?? '-').join(' '),
+      pulls: Object.values(r.loc).reduce((a, o) => a + o.pulls, 0),
+      extra: r.extra,
+      dread: r.dread ? (r.dread.killed !== undefined ? `down ${r.dread.killed}s` : bossLeft(r.dread)) : '-',
+    };
+  });
+  console.table(rows);
+  // bosses: locations 2–4 kill times, escapes
+  const B = {};
+  for (const r of runs) for (const b of r.bosses) (B[b.name] ||= []).push(b.killed !== undefined ? `${Math.round(b.killed)}s` : `esc ${bossLeft(b)}`);
+  console.table(Object.entries(B).map(([name, v]) => ({ boss: name, fights: v.join(' ') })));
+  // the emptiest sections over all runs
+  const secs = {};
+  for (const r of runs) for (const [k, v] of Object.entries(r.sections)) {
+    const o = (secs[k] ||= { n: 0, empty: 0 });
+    o.n += v.n;
+    o.empty += v.empty;
+  }
+  const worst = Object.entries(secs).filter(([k]) => !k.startsWith('5:') && !/dock$/.test(k)).map(([k, v]) => ({ section: k, empty: pct(v.empty, v.n), samples: v.n })).sort((a, b) => b.empty - a.empty).slice(0, 10);
+  console.table(worst);
+  const label = args.label || 'campaign';
+  writeFileSync(join(OUT, `${label}.campaign.json`), JSON.stringify({ rows, bosses: B, worst, runs: runs.map(({ sections, ...r }) => r) }, null, 1));
+}
+
 if (cmd === 'video') await analyzeVideo(args._[0]);
 else if (cmd === 'telemetry') analyzeTelemetry(args._[0]);
+else if (cmd === 'campaign') campaign(args._);
 else if (cmd === 'chart') chart(args._);
 else if (cmd === 'highlights') highlights(args.rank && args.rank !== true ? [args.rank, ...args._] : args._);
 else {
-  console.log('usage: analyze.js video <file> | telemetry <file> | chart <a.video.json> ... | highlights <take> | highlights --rank <take> ...');
+  console.log('usage: analyze.js video <file> | telemetry <file> | chart <a.video.json> ... | highlights <take> | highlights --rank <take> ... | campaign <take> ...');
   process.exit(1);
 }

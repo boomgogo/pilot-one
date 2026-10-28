@@ -74,6 +74,7 @@ export class Danger {
       if (n > before && B.markT[i] < 0) B.markT[i] = g.time; // first warning (amber or red)
     }
     for (const it of g.pickups.items) {
+      if (it.home) continue; // POWs fly to the ship: nothing to catch
       n = this._add(n, 'pickup', it.pos.x, it.pos.y, it.pos.z, it.vel.x, it.vel.y, it.vel.z, PICKUP_R, PICKUP_HORIZON, 60);
     }
     const R = g.rocks;
@@ -158,12 +159,14 @@ export class Danger {
     const g = this.game;
     const p = g.player;
     if (this.enabled && p.alive) {
+      // catch rings first, smaller and fainter, so a danger ring always draws over them: red wins
       for (const m of this.list) {
-        if (m.kind === 'pickup') {
-          const k = 1 - m.t / PICKUP_HORIZON;
-          bb.push(m.x, m.y, m.z, 0, 0, 0, CATCH[0], CATCH[1], CATCH[2], 0.25 + 0.5 * k, m.r * (0.9 + 0.1 * Math.sin(time * 8)), SHAPE.MARKER);
-          continue;
-        }
+        if (m.kind !== 'pickup') continue;
+        const k = 1 - m.t / PICKUP_HORIZON;
+        bb.push(m.x, m.y, m.z, 0, 0, 0, CATCH[0], CATCH[1], CATCH[2], 0.15 + 0.35 * k, m.r * (0.6 + 0.06 * Math.sin(time * 8)), SHAPE.MARKER);
+      }
+      for (const m of this.list) {
+        if (m.kind === 'pickup') continue;
         const urgency = 1 - m.t / HORIZON;
         const c = m.red ? RED : AMBER;
         const pulse = m.red ? 0.85 + 0.15 * Math.sin(time * 24) : 1;

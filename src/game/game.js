@@ -38,7 +38,8 @@ const EXTRA_LIVES = [150000, 450000, 900000, 1500000, 2250000, 3000000];
 // while you keep catching them; the good ending pays a clear bonus.
 const CHAIN_T = 2; // seconds without a kill before the chain drops
 const chainMul = (n) => (n >= 50 ? 4 : n >= 25 ? 3 : n >= 10 ? 2 : 1);
-const MEDALS = [100, 200, 500, 1000, 2000, 5000];
+// medals climb to 5,000, then 1,000 more per catch up to 10,000 (plan_1 §2.5)
+const MEDALS = [100, 200, 500, 1000, 2000, 5000, 6000, 7000, 8000, 9000, 10000];
 const CLEAR_BONUS = 500000; // + 50,000 per ship left, ×2 for one credit: about a quarter of a good run
 const RESCUE_T = 15; // still weak this long after a respawn: a supply gunship comes (ai/summary.md §6.1)
 // boss fights: a small wave crosses in front of the boss every 6–8 s (ai/summary.md §7.3)
@@ -160,7 +161,7 @@ export class Game {
       noShield: !!r.noShield,
       // live enemy bullets above this hold every gun (0: no cap). Locations 4–5 get harder through formations,
       // not a wall of bullets (ai/summary.md §7.2)
-      maxBullets: r.maxBullets ?? (T >= 4 ? 18 : T >= 3 ? 12 : 0),
+      maxBullets: r.maxBullets ?? (T >= 4 ? 18 : T >= 2 ? 12 : T >= 1 ? 10 : 0),
     };
   }
 
@@ -457,7 +458,7 @@ export class Game {
     const p = this.player;
     p.score = 0;
     p.lives = 3;
-    p.power = 0;
+    p.power = 0; // back to SINGLE, as after any lost ship (ai/summary.md §6.1)
     const lives = p.lives;
     p.reset(false);
     p.lives = lives;
@@ -591,19 +592,20 @@ export class Game {
       }
     } else {
       this.feederT = 4;
-      // a lull anywhere else (nothing shot down for 8 s, fewer than 4 in the air): a feeder wave too
+      // a lull anywhere else (nothing shot down for 6 s, fewer than 4 in view): a feeder wave too. Not during a
+      // stage's closing tally (its last TRANSIT seconds)
       const st = this.stage;
-      if (!b?.active && !sec.dock && !st.stageEnding && !this.tutor.holding && this.stageIdx >= 0 && this.time - this.lastKillT > 8 && this.enemies.alive < 4) {
-        this.lastKillT = this.time - 2; // the next one no sooner than 6 s from now
+      if (!b?.active && !sec.dock && !(st.stageEnding && st.remaining <= TRANSIT) && !this.tutor.holding && this.stageIdx >= 0 && this.time - this.lastKillT > 6 && this.waves.inView < 4) {
+        this.lastKillT = this.time - 2; // the next one no sooner than 4 s from now
         this.feeder();
       }
     }
   }
 
-  /** A small wave of darts through the gun line: no fire in locations 1–2, half rate after that. */
+  /** A small wave of darts through the gun line: no fire in location 1, half rate after that. */
   feeder() {
     const w = FEEDERS[this.feederK++ % FEEDERS.length];
-    this.waves.start({ ...w, id: feederId++, type: 'dart', feeder: true, noFire: this.locIdx < 2, slowFire: 2 });
+    this.waves.start({ ...w, id: feederId++, type: 'dart', feeder: true, noFire: this.locIdx < 1, slowFire: 2 });
     this.tm?.event('feeder', { boss: !!this.boss?.active });
   }
 
@@ -1077,8 +1079,8 @@ export class Game {
         this.bullets.clear();
         if (boss.def.final) this.run.finalKilled = true;
       } else if (boss.def.final) {
-        // the last boss got away: the game ends without its ending (ai/summary.md §4.3)
-        this.endGame(false);
+        // the last boss got away: the game ends without its ending, saying how close it was (ai/summary.md §4.3)
+        this.endGame(false, boss.hp / boss.maxHp);
       }
       this.boss = null;
       this.music?.play(this.loc.songs?.theme);
@@ -1119,11 +1121,11 @@ export class Game {
       const bonus = 100 * w.n * (w.red ? 2 : 1);
       this.addScore(bonus, e.pos.x, e.pos.y + 3, e.pos.z, true, w.red ? `SQUADRON +${bonus}` : `FORMATION +${bonus}`);
       if (w.red) {
-        this.pickups.spawn('pow', e.pos.x, e.pos.y, e.pos.z);
+        this.pickups.spawn('pow', e.pos.x, e.pos.y, e.pos.z, 'red');
         this.tutor.onSquadron();
       }
     }
-    if (w.drop && e.type === 'hammer') this.dropPickup(w.drop, e.pos.x, e.pos.y, e.pos.z);
+    if (w.drop && e.type === 'hammer') this.dropPickup(w.drop, e.pos.x, e.pos.y, e.pos.z, w.rescue ? 'supply' : 'gunship');
   }
 
   /** A boss or hulk part destroyed: a kill like any other (ai/summary.md §6.2), with a medal. */
@@ -1137,28 +1139,35 @@ export class Game {
     this.pickups.spawn('medal', pos.x, pos.y, pos.z);
   }
 
-  /** Back from a lost ship: up to 3 POWs wait at the wreck, ahead of you (ai/summary.md §6.1). */
+  /**
+   * Back from a lost ship, at SINGLE: nothing waits at the wreck, so the power has to be earned again. Only the supply
+   * gunship comes, if you're still weak after RESCUE_T s (ai/summary.md §6.1).
+   */
   onRespawn(lost) {
-    const p = this.player;
-    const n = Math.min(3, Math.ceil(lost / 2));
-    for (let i = 0; i < n; i++) this.pickups.spawn('pow', p.pos.x + (i - (n - 1) / 2) * 7, p.pos.y + (i % 2 ? 3 : -1), -78 - i * 6, true);
-    if (n) this.hud.hint(`${n} POW${n > 1 ? 's' : ''} from the wreck`, 2.4);
     this.rescueT = RESCUE_T;
     this.recover = { t: this.time, lost, two: false };
   }
 
-  /** A pickup drifted past without being caught: a missed medal starts the medal ladder again. */
+  /** A pickup drifted past without being caught: a missed medal starts the medal ladder again, loudly. */
   onPickupMissed(type) {
     if (type !== 'medal') return;
+    const lost = MEDALS[this.medalIdx];
     this.medalIdx = 0;
-    this.tm?.event('medalmiss', {});
+    this.tm?.event('medalmiss', { lost });
+    if (lost <= MEDALS[0] || !this.player.alive) return;
+    this.audio.medalLost();
+    this.hud.medalLost();
+    this.tutor.tip('medal', 3.5);
   }
 
-  /** A pickup drop (gunships, hulks, bosses). Location 5 takes some away: its ramp's `drops` and `noShield`. */
-  dropPickup(type, x, y, z) {
+  /**
+   * A pickup drop (gunships, hulks, bosses). Location 5 takes some away: its ramp's `drops` and `noShield`.
+   * src (telemetry): what dropped it.
+   */
+  dropPickup(type, x, y, z, src) {
     const d = this.difficulty;
     if (type !== 'pow' && (rng() > d.drops || (type === 'shield' && d.noShield))) return;
-    this.pickups.spawn(type, x, y, z);
+    this.pickups.spawn(type, x, y, z, src);
   }
 
   onEnemyEscaped(e) {
@@ -1187,7 +1196,8 @@ export class Game {
     for (const t of EXTRA_LIVES) {
       if (before < t && p.score >= t) {
         p.lives++;
-        this.hud.banner('EXTRA SHIP', 1.6);
+        this.tm?.event('extra', { at: t });
+        this.pickupBanner('EXTRA SHIP', p.pos);
         this.audio.extraLife();
       }
     }
@@ -1211,7 +1221,7 @@ export class Game {
           this.tm?.event('recover', { to: R.lost, s: +(this.time - R.t).toFixed(1), lost: R.lost, full: true });
           this.recover = null;
         }
-        this.hud.banner('POWER UP\n' + POWER[p.power], 1.6);
+        this.pickupBanner('POWER UP\n' + POWER[p.power], pos, POWER[p.power]);
         this.audio.powerUp();
       } else {
         this.addScore(5000, pos.x, pos.y, pos.z, true);
@@ -1229,7 +1239,7 @@ export class Game {
       this.audio.pickup();
     } else if (type === 'laser') {
       p.laserT = 8;
-      this.hud.banner('LASER\nhold fire: instant beam', 1.6);
+      this.pickupBanner('LASER\nhold fire: instant beam', pos);
       this.audio.powerUp();
     } else if (type === 'shield') {
       if (p.shield < 3) p.shield++;
@@ -1237,6 +1247,12 @@ export class Game {
       this.hud.hint('SHIELD +1', 1.2);
       this.audio.pickup();
     }
+  }
+
+  /** A pickup's banner, or a popup at the ship while a card or a warning has the banner (ai/summary.md §7.4). */
+  pickupBanner(text, pos, short = text.split('\n')[0]) {
+    if (this.hud.banner(text, 1.6, false, true)) return;
+    if (this.toScreen(pos.x, pos.y, pos.z, _v)) this.hud.popup(short, _v.x, _v.y - 40, 'gold');
   }
 
   /** Bomb: thrown forward, then an expanding shockwave clears bullets as it passes (weapons.js Bombs). */
@@ -1343,17 +1359,17 @@ export class Game {
     });
   }
 
-  /** The end of the game: the ending (the Dreadnought destroyed) or not (it escaped). */
-  endGame(good) {
+  /** The end of the game: the ending (the Dreadnought destroyed) or not (it escaped, with `hull` of its hp left). */
+  endGame(good, hull = 0) {
     this.state = 'ended';
     const r = this.run;
     const p = this.player;
     // the clear bonus (ai/summary.md §6.3): doubled for a one-credit clear
     const clearBonus = good ? (CLEAR_BONUS + 50000 * Math.max(0, p.lives - 1)) * (r.continues === 0 ? 2 : 1) : 0;
     this.award(clearBonus);
-    this.tm?.event('end', { good, score: p.score, continues: r.continues, clearBonus, maxChain: r.maxChain });
+    this.tm?.event('end', { good, score: p.score, continues: r.continues, clearBonus, maxChain: r.maxChain, hull: +hull.toFixed(3) });
     this.music?.play(good ? 'ending' : 'gameOver');
-    this.emit('ended', { good, score: p.score, hi: this.hi, continues: r.continues, seconds: this.time - r.t0, locs: r.locs, clearBonus, maxChain: r.maxChain, reached: this.reached() });
+    this.emit('ended', { good, hull, score: p.score, hi: this.hi, continues: r.continues, seconds: this.time - r.t0, locs: r.locs, clearBonus, maxChain: r.maxChain, reached: this.reached() });
   }
 
   gameOver() {
@@ -1462,6 +1478,7 @@ export class Game {
     const shieldsVisible = this.enemies.draw(g, t);
     this.hulks.draw(g, t);
     this.pickups.draw(g, t);
+    this.boss?.glow(g, t);
     g.end();
     this.hazards.draw(t);
     this.fx.draw();
@@ -1532,6 +1549,9 @@ export class Game {
     if (s.bossActive) {
       s.bossName = boss.name;
       s.bossHp = boss.hp / boss.maxHp;
+      // the time it has left before it escapes (ai/summary.md §7.3)
+      s.bossLeft = boss.state === 'dying' ? -1 : Math.max(0, boss.timeLimit - boss.t);
+      s.bossTime = boss.timeLimit;
     }
     this.hud.update(dt, s);
 

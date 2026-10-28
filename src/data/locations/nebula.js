@@ -99,7 +99,7 @@ const aimed = { w: 'aimed', n: 2, spread: 0.06, speed: 44, rate: 3.2 };
 const fan = { w: 'fan', n: 5, spread: 0.18, speed: 40, rate: 3.9 };
 const HULKS = {
   battleship: {
-    name: 'BATTLESHIP', model: 'battleship', scale: 1.2, yaw: PI, bonus: 12000, drops: ['pow', 'shield'], exitZ: 300, boom: 4,
+    name: 'BATTLESHIP', model: 'battleship', scale: 1.2, yaw: PI, bonus: 12000, drops: ['shield'], exitZ: 300, boom: 4,
     hull: [-70, -45, -20, 5, 30, 55, 80].map((z) => [0, 0, z, 9]),
     parts: Object.fromEntries([
       ...Array.from({ length: 8 }, (_, i) => [`turret${i}`, { hp: 18, r: 3.2, score: 900, weapon: i % 2 ? fan : aimed }]),
@@ -114,7 +114,7 @@ const HULKS = {
 
 const FLAGSHIP = {
   type: 'flagship', name: 'FLAGSHIP', model: 'flagship', bodyR: 26, hullR: 13, hold: { x: 0, y: 5, z: -205 }, enterFrom: -820,
-  scale: 1.3, pitch: 0.32, boom: 5, hpScale: 2.3, score: 30000, partScore: 2000, drops: ['pow', 'bomb'],
+  scale: 1.3, pitch: 0.32, boom: 6, hpScale: 3.1, score: 30000, partScore: 2000, drops: ['bomb'],
   parts: {
     batL1: { hp: 34, r: 5 }, batL2: { hp: 34, r: 5 }, batR1: { hp: 34, r: 5 }, batR2: { hp: 34, r: 5 },
     podL: { hp: 28, r: 4.5 }, podR: { hp: 28, r: 4.5 },
@@ -161,6 +161,12 @@ const FLAGSHIP = {
         b.coreT = b.phase === 3 ? 0.4 : 0.36;
         b.spiral += 0.29;
         for (let a = 0; a < arms; a++) b.spiralShot(core.world, b.spiral + (a * PI * 2) / arms, 38 * diff.bulletSpeed);
+      }
+      // an aimed spread from the core too: something to dodge besides the pattern (plan_1 §2.4)
+      b.aimT -= dt * diff.fireRate;
+      if (b.aimT <= 0) {
+        b.aimT = 2.6;
+        b.aimed(core.world, 3, 0.1, 44, 1);
       }
       b.beamT -= dt;
       if (b.beamT <= 0) {
@@ -275,7 +281,7 @@ const location = {
   stages: [
     {
       name: 'NEBULA EDGE',
-      ramp: { fire: 0.7, rate: 0.85, minAlive: 3, maxCharging: 3 },
+      ramp: { fire: 1, rate: 1, minAlive: 3, maxCharging: 4 },
       sections: [
         {
           id: 'edge', from: 'start', to: 's2', duration: 65, rocks: { kind: 'crystal', target: 3 },
@@ -295,14 +301,14 @@ const location = {
             { at: 50, f: 'mines', type: 'mine', n: 6 },
             { at: 54, f: 'sweep', type: 'dart', n: 5, dy: 8 },
             { at: 54.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: -8 },
-            { at: 58, f: 'vee', type: 'dart', n: 5 },
+            { at: 58, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
           ],
         },
       ],
     },
     {
       name: 'FLEET LINE',
-      ramp: { fire: 0.75, rate: 0.9, minAlive: 3, maxCharging: 4 },
+      ramp: { fire: 1.05, rate: 1.05, minAlive: 3, maxCharging: 5 },
       sections: [
         {
           id: 'fleet', from: 's2', to: 's3', duration: 70, rocks: { kind: 'crystal', target: 2 },
@@ -310,12 +316,12 @@ const location = {
             { at: 1.5, f: 'sweep', type: 'wasp', n: 4 },
             { at: 3, intro: 'crossfire' },
             { at: 3.5, hazard: 'crossfire', n: 1 },
-            { at: 7, f: 'vee', type: 'dart', n: 5 },
+            { at: 7, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 10, hazard: 'crossfire', n: 1 },
             { at: 12, f: 'helix', type: 'dart', n: 8 },
             { at: 16, f: 'overtake', type: 'wasp', n: 4, mirror: true },
             { at: 19, hazard: 'crossfire', n: 2, flip: true },
-            { at: 22, f: 'snake', type: 'wasp', n: 5, red: true },
+            { at: 22, f: 'snake', type: 'wasp', n: 5 },
             { at: 29, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles', drop: 'shield' },
             { at: 31, hazard: 'crossfire', n: 2 },
             { at: 34, f: 'ring', type: 'dart', n: 8 },
@@ -328,18 +334,24 @@ const location = {
             { at: 55, f: 'vee', type: 'wasp', n: 5 },
             { at: 59, f: 'helix', type: 'dart', n: 10 },
             { at: 63, f: 'sweep', type: 'dart', n: 5, dy: 6 },
+            // more on top of the hazard: these sections were the emptiest (plan_1 §2.2)
+            { at: 4, f: 'sweep', type: 'dart', n: 5, dy: 8 },
+            { at: 19.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: -8 },
+            { at: 31.5, f: 'vee', type: 'wasp', n: 4, dy: 6 },
+            { at: 41.5, f: 'overtake', type: 'dart', n: 4 },
+            { at: 52.5, f: 'sweep', type: 'wasp', n: 4, mirror: true, dy: 8 },
           ],
         },
       ],
     },
     {
       name: 'ION STORM',
-      ramp: { fire: 0.8, rate: 0.9, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.1, rate: 1.05, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'storm', from: 's3', to: 's4', duration: 65, rocks: { kind: 'dark', target: 2 }, lightning: true,
           waves: [
-            { at: 1.5, f: 'vee', type: 'dart', n: 5 },
+            { at: 1.5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 3, intro: 'strike' },
             { at: 4, hazard: 'strike', n: 1 },
             { at: 7, f: 'sweep', type: 'wasp', n: 4 },
@@ -347,9 +359,9 @@ const location = {
             { at: 13, f: 'helix', type: 'dart', n: 8 },
             { at: 17, hazard: 'strike', n: 3, spread: 14 },
             { at: 20, f: 'overtake', type: 'dart', n: 4 },
-            { at: 23, f: 'snake', type: 'dart', n: 5, red: true, flipY: true },
+            { at: 23, f: 'snake', type: 'dart', n: 5, flipY: true },
             { at: 30, hazard: 'strike', n: 5, gap: 0.4 },
-            { at: 33, f: 'hold', type: 'hammer', n: 1, weapon: 'shells', drop: 'pow' },
+            { at: 33, f: 'hold', type: 'hammer', n: 1, weapon: 'shells' },
             { at: 37, hazard: 'strike', n: 3 },
             { at: 40, f: 'ring', type: 'wasp', n: 6 },
             { at: 44, hazard: 'strike', n: 5 },
@@ -358,13 +370,19 @@ const location = {
             { at: 53, f: 'dive', type: 'wasp', n: 4 },
             { at: 57, hazard: 'strike', n: 5, spread: 12 },
             { at: 60, f: 'vee', type: 'wasp', n: 5 },
+            // more on top of the hazard: these sections were the emptiest (plan_1 §2.2)
+            { at: 10.5, f: 'sweep', type: 'dart', n: 5, dy: 8 },
+            { at: 17.5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', dy: -6 },
+            { at: 30.5, f: 'overtake', type: 'wasp', n: 4 },
+            { at: 37.5, f: 'sweep', type: 'wasp', n: 4, mirror: true, dy: 8 },
+            { at: 44.5, f: 'helix', type: 'dart', n: 6 },
           ],
         },
       ],
     },
     {
       name: 'THE SHROUD',
-      ramp: { fire: 0.85, rate: 0.95, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.15, rate: 1.1, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'shroud', from: 's4', to: 's5', duration: 70, rocks: { kind: 'dark', target: 3 }, fog: 0.0026,
@@ -393,43 +411,49 @@ const location = {
     },
     {
       name: 'BATTLESHIP',
-      ramp: { fire: 0.8, rate: 0.9, minAlive: 4, maxCharging: 5 },
+      ramp: { fire: 1.1, rate: 1.05, minAlive: 4, maxCharging: 6 },
       sections: [
         {
           id: 'battleship', from: 's5', to: 's6', duration: 70, song: 'boss', rocks: { kind: 'crystal', target: 2 },
           waves: [
             { at: 0.3, msg: 'WARNING\nBATTLESHIP', warn: true, msgT: 2.4 },
             { at: 2, intro: 'battleship' },
-            { at: 2, hulk: 'battleship', x: 62, y: -38, z: -520, speed: 12 },
+            { at: 2, hulk: 'battleship', x: 52, y: -38, z: -520, speed: 12 },
             { at: 8, f: 'sweep', type: 'dart', n: 5, dy: 10 },
             { at: 14, f: 'vee', type: 'shade', n: 4, dy: 8 },
             { at: 20, f: 'helix', type: 'dart', n: 8 },
-            { at: 26, f: 'snake', type: 'dart', n: 5, red: true, dy: 10 },
+            { at: 26, f: 'snake', type: 'dart', n: 5, dy: 10 },
             { at: 33, f: 'overtake', type: 'wasp', n: 4 },
             { at: 38, hazard: 'crossfire', n: 2 },
             { at: 42, f: 'sweep', type: 'wasp', n: 4, mirror: true, dy: 10 },
             { at: 48, f: 'dive', type: 'dart', n: 4 },
             { at: 54, f: 'vee', type: 'shade', n: 5 },
             { at: 60, f: 'wall', type: 'dart', n: 9 },
+            // more on top of the hazard: these sections were the emptiest (plan_1 §2.2)
+            { at: 5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', dy: 6 },
+            { at: 11, f: 'sweep', type: 'wasp', n: 4, mirror: true, dy: -8 },
+            { at: 17, f: 'overtake', type: 'dart', n: 4 },
+            { at: 29.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: -6 },
+            { at: 45, f: 'vee', type: 'wasp', n: 4, dy: 8 },
           ],
         },
       ],
     },
     {
       name: 'THE EYE',
-      ramp: { fire: 0.9, rate: 1, minAlive: 5, maxCharging: 5 },
+      ramp: { fire: 1.2, rate: 1.15, minAlive: 5, maxCharging: 6 },
       sections: [
         {
           id: 'eye', from: 's6', to: 'boss', duration: 65, rocks: { kind: 'crystal', target: 3 }, fog: 0.0007,
           waves: [
-            { at: 3, f: 'vee', type: 'dart', n: 3 },
+            { at: 3, f: 'vee', type: 'dart', n: 3, weapon: 'burst3' },
             { at: 8, f: 'sweep', type: 'dart', n: 4 },
             { at: 16, f: 'helix', type: 'dart', n: 10 },
             { at: 17, f: 'overtake', type: 'wasp', n: 4 },
             { at: 17.5, f: 'overtake', type: 'wasp', n: 4, mirror: true },
             { at: 20, hazard: 'strike', n: 3 },
             { at: 21, f: 'vee', type: 'shade', n: 5 },
-            { at: 24, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles', drop: 'pow' },
+            { at: 24, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles' },
             { at: 26, f: 'snake', type: 'wasp', n: 5, red: true },
             { at: 32, f: 'ring', type: 'dart', n: 8, roll: PI / 2, rot: PI / 2 },
             { at: 34, hazard: 'crossfire', n: 2 },
@@ -450,14 +474,14 @@ const location = {
     },
     {
       name: 'FLAGSHIP',
-      ramp: { fire: 0.9, rate: 0.8, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.2, rate: 0.95, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'flagship', from: 'boss', to: 'dock', duration: 72, boss: 'flagship', bossTime: 64, rocks: { kind: 'crystal', target: 2 },
           waves: [
             { at: 2.4, msg: 'WARNING\nFLAGSHIP', warn: true, msgT: 2.4 },
             { at: 16, f: 'vee', type: 'shade', n: 4, dy: 12 },
-            { at: 28, f: 'snake', type: 'dart', n: 5, red: true, dy: 12 },
+            { at: 28, f: 'snake', type: 'dart', n: 5, dy: 12 },
             { at: 40, hazard: 'crossfire', n: 2 },
             { at: 46, f: 'sweep', type: 'wasp', n: 4, dy: -12 },
             { at: 56, hazard: 'strike', n: 3 },

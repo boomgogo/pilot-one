@@ -41,22 +41,22 @@ location 1, stage 1; after location 5 the game ends (`src/data/locations/`).
 
 - **Difficulty** rises by location (`Game.makeDifficulty`: each stage's ramp × the location's threat level).
   Location 5 is a step up and almost impossible: more and faster fire, fewer pickups, no shield back at its tallies,
-  shorter boss time limits. Every hit is still telegraphed. If the Dreadnought escapes, the game ends without its
-  ending. Continue works as before (score back to 0); the ending shows how many continues you used.
+  shorter boss time limits. Every hit is still telegraphed. Every boss escapes when its time runs out (the strip under
+  its hp bar); if the Dreadnought escapes, the game ends without its ending. Continue works as before (score back to 0); the ending shows how many continues you used.
 - **Stage ends:** a ring of lights across the corridor turns green as you fly through it; the tally counts up, grades
   the stage (S, A, B, C), shows the location's stage pips and what you got back; a short jingle plays.
 - **Location ends:** the landing, the location clear screen (grades, medals: cleared, no ship lost, 90% shot down,
   all S; a full shield and bombs), the star map, the jump, and the next location's title card.
 - **Records** per location (best score, medals) are kept by the browser and shown on the title screen.
 - **Score:** a kill chain multiplies kill points (×2 from 10 kills, ×3 from 25, ×4 from 50) and drops after 2 s
-  without a kill. Gunships, hulk parts and boss parts drop medals worth 100, 200, 500, 1,000, 2,000, then 5,000; one
-  that gets past starts the ladder again. The good ending pays a clear bonus, doubled for a one-credit clear.
+  without a kill. Gunships, hulk parts and boss parts drop medals worth 100, 200, 500, 1,000, 2,000, 5,000, then
+  1,000 more per catch up to 10,000; one that gets past starts the ladder again ("MEDAL LOST"). The good ending pays a clear bonus, doubled for a one-credit clear.
 - **Hall of fame:** a local top 10 with three initials, the stage reached and continues used. You enter them on the
   game over and ending screens, with the keyboard, the ▲ ▼ buttons, or a gamepad (d-pad, A).
 - **The shoot-down ratio** counts only the enemies you could engage: hit at least once, or 1.5 s in view within 350
   units. Boss and hulk parts count as kills.
-- **Formations:** from location 2 on, some waves come round for a second pass. Locations 4–5 have bigger squads and
-  less fire, with a cap on live enemy bullets.
+- **Formations:** from location 2 on, some waves come round for a second pass. Locations 4–5 have bigger squads, and
+  locations 2–5 a cap on live enemy bullets. Clear a wave fast and the next one comes sooner.
 - **Music:** a theme per location, boss cues, the final boss, jingles, the title and the ending, all synthesized in
   the browser from note data (`src/audio/music.js`, `src/audio/songs.js`, and each location's own songs). A
   four-note fleet motif ties them together. Music volume is in the pause menu.
@@ -87,9 +87,11 @@ threat with a one-line hint instead.
 
 ## Weapons
 
-Each POW (shoot down a whole red squadron, or from some gunships and bosses) adds a level. Losing a ship drops you
-back to a single bolt, but up to 3 POWs wait at the wreck, ahead of you (half the levels you lost, rounded up). If
-you are still at SINGLE or TWIN 15 s later, a slow supply gunship brings one more. Every bolt of a volley flies parallel to your aim line, so the streams never cross.
+Each POW adds a level, and full power takes work: there are 2 POWs in location 1, 3 in each of locations 2–4 and 2
+in location 5, each one a red squadron shot down to the last ship. A POW flies to your ship once it drops. Losing a ship drops you
+back to a single bolt with nothing given back, so FULL is the rest of a location away; if you are still at SINGLE or
+TWIN 15 s after a respawn, a slow supply gunship brings one POW. Every bolt of a volley flies parallel to your aim
+line, so the streams never cross.
 
 | Level | Volley |
 |---|---|
@@ -98,7 +100,7 @@ you are still at SINGLE or TWIN 15 s later, a slow supply gunship brings one mor
 | QUAD | twin + two outer bolts angled outward (a cone; roll to turn it vertical) |
 | MISSILES | + wingman drones launching homing missiles |
 | SPIRAL | the twin becomes four bolts on a turning circle (a rotating cylinder of tracers) |
-| FULL | the drones fire too, faster |
+| FULL | the drones fire too, faster (the outer streams are drawn thin, so they don't hide the targets) |
 
 The laser pickup (L) is an 8 s special on top.
 
@@ -179,6 +181,7 @@ npm run record -- --no-video --wav                    # telemetry + the sound tr
 npm run play                                          # watch the bot play in a browser window, in real time
 npm run play -- --human                               # you play; close the window to save the run's telemetry
 node scripts/play/analyze.js telemetry recordings/<run>.telemetry.json   # incl. a per-stage table and the dodge probe
+node scripts/play/analyze.js campaign recordings/<take> ...           # whole campaigns: power over the run, empty screens, bosses
 npm run probe                                         # checks that no two bolts of a volley ever cross
 npm run record -- --no-video --campaign --params god  # every location, through the star map, to the ending
 npm run record -- --loc 3 --no-video                  # start at location 3

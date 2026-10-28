@@ -161,6 +161,10 @@
       #boss-bar .name { font-size: 12px; letter-spacing: 0.3em; color: var(--red); margin-bottom: 4px; }
       #boss-bar .track { height: 8px; border: 1px solid rgba(255, 77, 109, 0.6); border-radius: 4px; overflow: hidden; background: rgba(0, 0, 0, 0.4); }
       #boss-bar .fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff4d6d, #ffb04a); transition: width 0.15s; }
+      #boss-bar .clock { height: 3px; margin: 3px 1px 0; border-radius: 2px; overflow: hidden; background: rgba(255, 255, 255, 0.12); }
+      #boss-bar .clock > i { display: block; height: 100%; width: 100%; background: #cfe9ff; }
+      #boss-bar .clock.low > i { background: var(--red); }
+      #boss-bar .secs { min-height: 15px; margin-top: 3px; font-size: 12px; font-weight: 800; letter-spacing: 0.2em; color: var(--red); }
       #banner {
         position: fixed; left: 50%; top: 28%; transform: translate(-50%, -50%); text-align: center; white-space: pre-line;
         font-weight: 800; letter-spacing: 0.22em; font-size: clamp(18px, 4.4vw, 34px); opacity: 0; transition: opacity 0.35s; width: 92vw;
@@ -199,6 +203,7 @@
       #hud-chain.pulse { animation: chainpulse 0.35s ease-out; }
       @keyframes chainpulse { 50% { transform: scale(1.25); transform-origin: left center; } }
       #hud-medal { font-size: 11px; color: #ffd75a; letter-spacing: 0.1em; margin-top: 3px; }
+      #hud-medal.lost { color: var(--red); font-weight: 800; animation: blink 0.25s steps(2) infinite; }
       #loc-card { top: 34%; }
       #loc-card .a { font-size: clamp(12px, 2.4vw, 16px); letter-spacing: 0.5em; color: var(--warm); }
       #loc-card .b {
@@ -272,7 +277,7 @@
         <div class="pips hidden" id="hud-laser">LASER <span class="bar"><i></i></span></div>
       </div>
       <div class="hud-tc">
-        <div id="boss-bar" class="hidden"><div class="name">BOSS</div><div class="track"><div class="fill"></div></div></div>
+        <div id="boss-bar" class="hidden"><div class="name">BOSS</div><div class="track"><div class="fill"></div></div><div class="clock"><i></i></div><div class="secs"></div></div>
       </div>
       <div id="banner"></div>
       <div id="stage-tally" class="hidden"><div class="t"></div><div class="grade"></div><div class="stage-pips"></div><div class="tally"></div><div class="rewards"></div></div>

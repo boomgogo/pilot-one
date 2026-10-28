@@ -233,7 +233,7 @@ export class Hulks {
       g.fx.bigExplosion(h.pos.x, h.pos.y, h.pos.z, h.def.boom || 2);
       g.shakeCamera(1.2);
       const drops = h.w.drop ? [h.w.drop] : h.def.drops || [];
-      drops.forEach((d, i) => g.dropPickup(d, h.pos.x + (i - (drops.length - 1) / 2) * 8, h.pos.y, h.pos.z));
+      drops.forEach((d, i) => g.dropPickup(d, h.pos.x + (i - (drops.length - 1) / 2) * 8, h.pos.y, h.pos.z, 'hulk'));
       g.tm?.event('hulk', { type: h.w.hulk, killed: true });
     }
   }

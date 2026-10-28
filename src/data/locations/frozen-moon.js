@@ -201,7 +201,7 @@ const HULKS = {
 
 const FORTRESS = {
   type: 'fortress', name: 'FORTRESS', model: 'fortress', bodyR: 30, hullR: 14, hold: { x: 0, y: -46, z: -195 }, enterFrom: -760,
-  scale: 1.35, pitch: 0.12, boom: 5, hpScale: 2.4, score: 36000, partScore: 2000, drops: ['pow', 'shield'],
+  scale: 1.35, pitch: 0.12, boom: 6, hpScale: 3.2, score: 36000, partScore: 2000, drops: ['shield'],
   parts: {
     tower0: { hp: 30, r: 4.6 }, tower1: { hp: 30, r: 4.6 }, tower2: { hp: 30, r: 4.6 }, tower3: { hp: 30, r: 4.6 },
     gen0: { hp: 40, r: 4.6 }, gen1: { hp: 40, r: 4.6 },
@@ -241,6 +241,12 @@ const FORTRESS = {
         b.spiral += 0.4;
         g.enemies.ring(core.world.x, core.world.y, core.world.z, b.phase === 3 ? 10 : 8, 34 * diff.bulletSpeed, b.spiral, 3);
         g.audio?.enemyShot();
+      }
+      // an aimed spread from the core too: something to dodge besides the pattern (plan_1 §2.4)
+      b.aimT -= dt * diff.fireRate;
+      if (b.aimT <= 0) {
+        b.aimT = 2.4;
+        b.aimed(core.world, 3, 0.1, 42, 1);
       }
       b.beamT -= dt;
       if (b.beamT <= 0) {
@@ -361,12 +367,12 @@ const location = {
   stages: [
     {
       name: 'DESCENT',
-      ramp: { fire: 0.7, rate: 0.85, minAlive: 3, maxCharging: 3 },
+      ramp: { fire: 1, rate: 1, minAlive: 3, maxCharging: 4 },
       sections: [
         {
           id: 'descent', from: 'start', to: 's2', duration: 65, rocks: { kind: 'ice', target: 3 },
           waves: [
-            { at: 1.5, f: 'vee', type: 'dart', n: 5 },
+            { at: 1.5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 5, f: 'dive', type: 'dart', n: 4 },
             { at: 9, f: 'sweep', type: 'wasp', n: 4 },
             { at: 13, f: 'helix', type: 'dart', n: 8 },
@@ -380,31 +386,31 @@ const location = {
             { at: 47, f: 'dive', type: 'dart', n: 4, flipY: true },
             { at: 51, f: 'sweep', type: 'dart', n: 5, dy: 6 },
             { at: 55, f: 'helix', type: 'wasp', n: 6 },
-            { at: 59, f: 'vee', type: 'dart', n: 5 },
+            { at: 59, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
           ],
         },
       ],
     },
     {
       name: 'ICE PLAINS',
-      ramp: { fire: 0.75, rate: 0.9, minAlive: 3, maxCharging: 4 },
+      ramp: { fire: 1.05, rate: 1.05, minAlive: 3, maxCharging: 5 },
       sections: [
         {
           id: 'plains', from: 's2', to: 's3', duration: 70, rocks: { kind: 'ice', target: 2 },
           waves: [
             { at: 2, intro: 'ground' },
             { at: 2, hulk: 'groundgun', x: 40, y: -ALT + 2 },
-            { at: 6, f: 'vee', type: 'dart', n: 5, dy: 8 },
+            { at: 6, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', dy: 8 },
             { at: 9, hulk: 'groundgun', x: -45, y: -ALT + 2 },
             { at: 12, hulk: 'crawler', x: 80, y: -ALT + 3, vx: -16 },
             { at: 16, f: 'sweep', type: 'wasp', n: 4 },
             { at: 20, hulk: 'groundgun', x: 18, y: -ALT + 2 },
-            { at: 22, f: 'snake', type: 'dart', n: 5, red: true, dy: 8 },
+            { at: 22, f: 'snake', type: 'dart', n: 5, dy: 8 },
             { at: 28, hulk: 'crawler', x: -80, y: -ALT + 3, vx: 16, yaw: PI },
             { at: 30, f: 'hold', type: 'hammer', n: 1, weapon: 'missiles', drop: 'shield' },
             { at: 34, hulk: 'groundgun', x: -30, y: -ALT + 2 },
             { at: 36, f: 'helix', type: 'dart', n: 8 },
-            { at: 40, hulk: 'groundgun', x: 50, y: -ALT + 2, drop: 'pow' },
+            { at: 40, hulk: 'groundgun', x: 50, y: -ALT + 2 },
             { at: 43, f: 'overtake', type: 'wasp', n: 4 },
             { at: 47, hulk: 'crawler', x: 78, y: -ALT + 3, vx: -14 },
             { at: 50, f: 'vee', type: 'wasp', n: 5 },
@@ -412,25 +418,31 @@ const location = {
             { at: 56, f: 'ring', type: 'dart', n: 8 },
             { at: 60, hulk: 'groundgun', x: 35, y: -ALT + 2 },
             { at: 62, f: 'sweep', type: 'dart', n: 5 },
+            // more on top of the hazard: these sections were the emptiest (plan_1 §2.2)
+            { at: 9.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: 8 },
+            { at: 25, f: 'vee', type: 'wasp', n: 4, dy: 8 },
+            { at: 39, f: 'sweep', type: 'dart', n: 5, dy: 10 },
+            { at: 47.5, f: 'overtake', type: 'dart', n: 4, mirror: true },
+            { at: 59, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', dy: 8 },
           ],
         },
       ],
     },
     {
       name: 'THE CANYON',
-      ramp: { fire: 0.75, rate: 0.9, minAlive: 3, maxCharging: 3 },
+      ramp: { fire: 1.05, rate: 1.05, minAlive: 3, maxCharging: 4 },
       sections: [
         {
           id: 'canyon', from: 's3', to: 's4', duration: 65, box: { x: 16, y: 14 }, rocks: { kind: 'ice', target: 2 },
           waves: [
             { at: 1.5, intro: 'canyon' },
-            { at: 2, f: 'vee', type: 'dart', n: 5, ...narrow },
+            { at: 2, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', ...narrow },
             { at: 6, f: 'helix', type: 'dart', n: 8, ...narrow },
             { at: 10, f: 'overtake', type: 'dart', n: 4, ...squeeze },
             { at: 14, f: 'wall', type: 'dart', n: 9, ...narrow },
             { at: 18, f: 'snake', type: 'dart', n: 5, red: true, sx: 0.4 },
             { at: 25, f: 'dive', type: 'wasp', n: 4, ...squeeze },
-            { at: 29, f: 'hold', type: 'hammer', n: 1, drop: 'pow' },
+            { at: 29, f: 'hold', type: 'hammer', n: 1 },
             { at: 33, f: 'ring', type: 'dart', n: 8, ...narrow },
             { at: 37, f: 'vee', type: 'wasp', n: 5, roll: PI, ...narrow },
             { at: 41, f: 'sweep', type: 'dart', n: 5, sx: 0.4, dy: 6 },
@@ -438,26 +450,31 @@ const location = {
             { at: 49, f: 'helix', type: 'wasp', n: 6, ...narrow },
             { at: 53, f: 'overtake', type: 'wasp', n: 4, mirror: true, ...squeeze },
             { at: 57, f: 'wall', type: 'dart', n: 9, ...narrow },
-            { at: 61, f: 'vee', type: 'dart', n: 5, ...narrow },
+            { at: 61, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', ...narrow },
+            // more on top of the hazard: these sections were the emptiest (plan_1 §2.2)
+            { at: 22, f: 'dive', type: 'dart', n: 4, ...squeeze },
+            { at: 31, f: 'snake', type: 'dart', n: 5, sx: 0.4, dy: -4 },
+            { at: 43, f: 'dive', type: 'wasp', n: 4, mirror: true, ...squeeze },
+            { at: 55, f: 'snake', type: 'wasp', n: 5, sx: 0.4, dy: 4 },
           ],
         },
       ],
     },
     {
       name: 'GEYSER FIELD',
-      ramp: { fire: 0.8, rate: 0.95, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.1, rate: 1.1, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'geysers', from: 's4', to: 's5', duration: 70, rocks: { kind: 'ice', target: 2 },
           waves: [
             { at: 2, intro: 'geyser' },
             { at: 3, hazard: 'geyser', x: [0] },
-            { at: 8, f: 'vee', type: 'dart', n: 5 },
+            { at: 8, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 10, hazard: 'geyser', x: [-14, 14] },
             { at: 13, f: 'helix', type: 'dart', n: 8 },
             { at: 16, hazard: 'geyser', x: [-20, 0, 20], gap: 0.6 },
             { at: 19, f: 'overtake', type: 'dart', n: 4 },
-            { at: 22, f: 'snake', type: 'wasp', n: 5, red: true },
+            { at: 22, f: 'snake', type: 'wasp', n: 5 },
             { at: 28, hazard: 'geyser', x: [-8, 8, -16, 16], gap: 0.4 },
             { at: 31, f: 'hold', type: 'hammer', n: 1, weapon: 'laser', drop: 'bomb' },
             { at: 35, hazard: 'geyser', x: [0, -12, 12], gap: 0.5 },
@@ -470,25 +487,31 @@ const location = {
             { at: 56, hazard: 'geyser', x: [-20, -10, 0, 10, 20], gap: 0.35 },
             { at: 60, f: 'vee', type: 'wasp', n: 5 },
             { at: 63, hazard: 'geyser', x: [0] },
+            // more on top of the hazard: these sections were the emptiest (plan_1 §2.2)
+            { at: 4, f: 'sweep', type: 'dart', n: 5, dy: 10 },
+            { at: 16.5, f: 'vee', type: 'dart', n: 5, weapon: 'burst3', dy: 10 },
+            { at: 28.5, f: 'sweep', type: 'wasp', n: 4, mirror: true, dy: 10 },
+            { at: 43.5, f: 'overtake', type: 'dart', n: 4 },
+            { at: 56.5, f: 'sweep', type: 'dart', n: 5, mirror: true, dy: 10 },
           ],
         },
       ],
     },
     {
       name: 'UNDER THE ICE',
-      ramp: { fire: 0.85, rate: 0.95, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.15, rate: 1.1, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'cavern', from: 's5', to: 'boss', duration: 70, box: { x: 24, y: 14 }, calm: true, rocks: { kind: 'ice', target: 3 },
           waves: [
             { at: 1.5, intro: 'cavern' },
-            { at: 2, f: 'vee', type: 'dart', n: 5 },
+            { at: 2, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
             { at: 6, f: 'sweep', type: 'wasp', n: 4, sx: 0.8 },
             { at: 10, f: 'helix', type: 'dart', n: 8 },
             { at: 14, f: 'mines', type: 'mine', n: 6 },
             { at: 18, f: 'overtake', type: 'dart', n: 4 },
             { at: 22, f: 'snake', type: 'dart', n: 5, red: true, sx: 0.6 },
-            { at: 29, f: 'hold', type: 'hammer', n: 1, weapon: 'shells', drop: 'pow' },
+            { at: 29, f: 'hold', type: 'hammer', n: 1, weapon: 'shells' },
             { at: 32, f: 'ring', type: 'dart', n: 8, sy: 0.7 },
             { at: 36, f: 'dive', type: 'wasp', n: 4, sx: 0.7, sy: 0.6 },
             { at: 40, f: 'wall', type: 'dart', n: 9, sy: 0.7 },
@@ -497,21 +520,21 @@ const location = {
             { at: 52, f: 'mines', type: 'mine', n: 8 },
             { at: 56, f: 'sweep', type: 'dart', n: 5, sx: 0.7 },
             { at: 60, f: 'overtake', type: 'wasp', n: 4 },
-            { at: 63, f: 'vee', type: 'dart', n: 5 },
+            { at: 63, f: 'vee', type: 'dart', n: 5, weapon: 'burst3' },
           ],
         },
       ],
     },
     {
       name: 'FORTRESS',
-      ramp: { fire: 0.9, rate: 0.8, minAlive: 4, maxCharging: 4 },
+      ramp: { fire: 1.2, rate: 0.95, minAlive: 4, maxCharging: 5 },
       sections: [
         {
           id: 'fortress', from: 'boss', to: 'dock', duration: 72, boss: 'fortress', bossTime: 64, rocks: { kind: 'ice', target: 2 },
           waves: [
             { at: 2.4, msg: 'WARNING\nFORTRESS', warn: true, msgT: 2.4 },
-            { at: 14, f: 'vee', type: 'dart', n: 4, dy: 12 },
-            { at: 26, f: 'snake', type: 'dart', n: 5, red: true, dy: 10 },
+            { at: 14, f: 'vee', type: 'dart', n: 4, weapon: 'burst3', dy: 12 },
+            { at: 26, f: 'snake', type: 'dart', n: 5, dy: 10 },
             { at: 38, hazard: 'geyser', x: [-12, 12] },
             { at: 46, f: 'sweep', type: 'wasp', n: 4, dy: 12 },
             { at: 56, f: 'dive', type: 'dart', n: 4 },

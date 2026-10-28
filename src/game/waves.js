@@ -1,9 +1,13 @@
 import { buildMembers } from './formations.js';
 
 // Wave timeline for the current section + density director.
-// The director fast-forwards the timeline when the screen is quiet, so there is never dead air.
+// The director fast-forwards the timeline when the screen is quiet, so there is never dead air: 4× while fewer than
+// minAlive targets are in view, and a jump to the next wave once nothing has been in view for EMPTY_T s (killing fast
+// brings the next wave sooner), at most PULL_MAX s ahead of its authored time (ai/summary.md §7.3).
 
 let nextWaveId = 1;
+const EMPTY_T = 1;
+const PULL_MAX = 10;
 
 // Formations a location can enlarge (loc.formations.squad) and send round for a second pass (loc.formations.loop:
 // the share of waves that loop). Locations 4–5 get harder through formations, not bullets (ai/summary.md §7.1, §7.2).
@@ -37,13 +41,25 @@ export class WaveRunner {
     this.pending = [];
     this.minAlive = 4;
     this.atLessonGate = false; // an open lesson is holding the clock before the next non-practice wave (tutor.js)
+    this.inView = 0; // targets in view (inViewNow())
+    this.emptyT = 0;
   }
 
   load(section) {
     this.waves = section.waves;
+    this.dock = !!section.dock;
     this.clock = 0;
     this.idx = 0;
+    this.emptyT = 0;
     this.pending.length = 0;
+  }
+
+  /** Targets you can see: enemies on screen ahead within range (Enemies.visible), live hulk parts on screen, a boss. */
+  inViewNow() {
+    const g = this.game;
+    let n = g.enemies.visible + (g.boss?.active ? 6 : 0);
+    for (const h of g.hulks.list) for (const p of h.parts) if (p.alive && g.onScreen(p.world.x, p.world.y, p.world.z, 0)) n++;
+    return n;
   }
 
   clear() {
@@ -54,12 +70,21 @@ export class WaveRunner {
   update(dt) {
     const g = this.game;
     const holding = g.tutor?.holding;
+    const seen = (this.inView = this.inViewNow());
+    const ahead = !holding && this.idx < this.waves.length && this.pending.length === 0 ? this.waves[this.idx] : null;
     let scale = 1;
-    if (!holding && this.idx < this.waves.length && this.pending.length === 0 && g.enemies.alive + (g.boss?.active ? 6 : 0) < this.minAlive) {
-      const gap = this.waves[this.idx].at - this.clock;
-      if (gap > 0.7) scale = 4;
-    }
+    if (ahead && seen < this.minAlive && ahead.at - this.clock > 0.7) scale = 4;
     let next = this.clock + dt * scale;
+    // an empty screen: the next wave (not a lesson, hint or message, which are timed to the place) comes now
+    this.emptyT = ahead && !this.dock && seen === 0 ? this.emptyT + dt : 0;
+    if (this.emptyT >= EMPTY_T && (ahead.members || ahead.hulk || ahead.hazard)) {
+      this.emptyT = 0;
+      const to = Math.min(ahead.at, g.stage.time + PULL_MAX);
+      if (to > next) {
+        g.tm?.event('pull', { wave: ahead.id, s: +(to - next).toFixed(2) });
+        next = to;
+      }
+    }
     this.atLessonGate = false;
     if (holding) {
       // an open lesson: practise it while little else happens. The clock doesn't pass the next wave that isn't
