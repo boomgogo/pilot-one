@@ -1195,7 +1195,7 @@ export class Game {
   }
 
   collect(type, pos) {
-    this.tm?.event('pickup', { type });
+    this.tm?.event('pickup', type === 'medal' ? { type, value: MEDALS[this.medalIdx] } : { type });
     const p = this.player;
     this.fx.ring(pos.x, pos.y, pos.z, 6, PICKUP[type].glow, 0.4);
     if (type === 'pow') {

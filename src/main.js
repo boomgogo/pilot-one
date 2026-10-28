@@ -5,14 +5,14 @@ import { extractModel, fallbackModel } from './render/models.js';
 import { isTouch, preliminaryTier, refineTier, TIERS } from './core/quality.js';
 import { Input } from './core/input.js';
 import { loadSave, writeSave } from './core/storage.js';
-import { Sfx, wavBase64 } from './audio/sfx.js';
+import { Sfx, wavBase64, offlineChunks } from './audio/sfx.js';
 import { Music } from './audio/music.js';
 import { SHARED_SONGS } from './audio/songs.js';
 import { Hud } from './ui/hud.js';
 import { Game } from './game/game.js';
 import { LOCATIONS } from './data/locations/index.js';
 import { formatScore } from './core/util.js';
-import { showLocationClear, showStarMap, showEnding, renderRecords } from './ui/screens.js';
+import { showLocationClear, showStarMap, showEnding, renderRecords, setUiClock } from './ui/screens.js';
 import { viewSnapshot } from './game/telemetry.js';
 import { addEntry, NameEntry, qualifies, renderHof } from './ui/hof.js';
 
@@ -269,8 +269,10 @@ function toStarMap() {
   const b = $('launch-btn');
   if (b.disabled) b.textContent = 'Preparing the jump…';
   b.focus({ preventScroll: true });
-  // launches by itself after a few seconds, once the next location is ready (ai/summary.md §4.3)
+  // launches by itself after a few seconds, once the next location is ready (ai/summary.md §4.3).
+  // ?capture: the countdown would run on the wall clock, so the recorder launches instead
   clearInterval(autoLaunch);
+  if (debug.capture) return;
   let left = 9;
   autoLaunch = setInterval(() => {
     if (b.disabled || ui.map.classList.contains('hidden')) return;
@@ -455,7 +457,12 @@ async function boot() {
     if (!locked && game.state === 'playing' && !isTouch && !debug.bot) game.pause();
   };
   if (debug.bot) input.ignoreBlur = true;
-  if (debug.capture) audio.startRecording(() => game.time);
+  if (debug.capture) {
+    audio.startRecording(() => game.time);
+    // stepped frames: the double-tap and the between-location screens run on game time (ai/plan_0.md gap 9)
+    input.clock = () => game.time * 1000;
+    setUiClock(() => game.time * 1000);
+  }
 
   progress(0.88, 'compiling shaders');
   try {
@@ -492,7 +499,7 @@ async function boot() {
       for (let i = 0; i < n; i++) tick(1000 / 60);
       return game.state;
     },
-    renderAudio: (t0) => audio.renderRecording(t0),
+    renderAudio: (t0, opts) => audio.renderRecording(t0, opts),
     // scripts/play/music.js: one cue rendered offline (the same synth as the game), as a base64 WAV
     songs: () => Object.keys(music.songs),
     renderMusic: async (name, seconds = 30, jingle = false) => {
@@ -504,7 +511,8 @@ async function boot() {
       const mu = new Music(sfx);
       mu.songs = music.songs;
       mu.volume = options.musicVolume ?? 0.6;
-      mu.renderOffline(ctx, sfx.comp, [[0, jingle ? 'jingle' : 'music', [name, 0]]], 0, seconds);
+      const pump = mu.renderOffline(ctx, sfx.comp, [[0, jingle ? 'jingle' : 'music', [name, 0]]], 0, seconds);
+      offlineChunks(ctx, seconds, (k, len) => pump((k + 2) * len));
       const buf = await ctx.startRendering();
       return wavBase64(buf.getChannelData(0), rate);
     },

@@ -1,0 +1,93 @@
+{
+ "target": "youtube",
+ "take": "recordings/shoot/20261028-b20b-showcase-s7-1280x720@2",
+ "attract": "recordings/shoot/20261028-b20b-attract-1280x720@2",
+ "beds": {
+  "open": { "seg": "L5", "at": 1813 },
+  "power": { "seg": "L1", "at": 205.5 }
+ },
+ "entries": [
+  { "chapter": "Intro" },
+  { "at": 1838.4, "dur": 2.6, "bed": "open" },
+  { "at": 1850.9, "dur": 2.6, "bed": "open" },
+  { "at": 2029.4, "dur": 2.4, "bed": "open" },
+  { "at": 1897.9, "dur": 2.4, "bed": "open" },
+  { "card": "title", "dur": 8, "from": 2, "bed": "open", "lines": ["A 3D ARCADE SHOOT 'EM UP", "IN YOUR BROWSER"] },
+
+  { "chapter": "Fly the rail" },
+  { "at": 0.05, "to": 3.0 },
+  { "at": 3.0, "to": 11.5, "caption": "FLY THE RAIL", "sub": "AIM ANYWHERE" },
+  { "at": 15.0, "to": 27.5, "caption": "SHOTS LEAD THE TARGET", "sub": "FOLLOW THE DIAMOND" },
+  { "at": 44.5, "to": 52.0, "caption": "SHOOT A WHOLE RED SQUADRON", "sub": "FOR A POW" },
+
+  { "chapter": "Dodge and roll" },
+  { "at": 76.5, "to": 84.0, "caption": "RED RING: MOVE", "sub": "DANGER MARKERS FOR 3D DODGING" },
+  { "at": 175.5, "to": 186.0, "caption": "ROLL TO MATCH THEIR WINGS" },
+  { "at": 192.5, "to": 198.5, "caption": "ALIGNED KILLS SCORE DOUBLE" },
+
+  { "chapter": "Power" },
+  { "at": 128.4, "dur": 4.6, "bed": "power" },
+  { "at": 188.8, "dur": 4.6, "bed": "power" },
+  { "at": 242.5, "dur": 5.2, "bed": "power" },
+  { "at": 253.2, "dur": 6.0, "bed": "power" },
+  { "at": 345.4, "dur": 6.0, "bed": "power" },
+
+  { "chapter": "Evade and bomb" },
+  { "at": 322.5, "to": 330.0, "caption": "BARREL ROLL THROUGH", "sub": "THE LASER GATE" },
+  { "at": 354.5, "to": 362.0 },
+  { "at": 420.5, "to": 428.0, "caption": "THE BOMB CLEARS BULLETS" },
+
+  { "chapter": "Mothership" },
+  { "at": 449.5, "to": 459.5 },
+  { "at": 462.6, "to": 467.0 },
+  { "at": 476.5, "to": 491.05 },
+
+  { "chapter": "The Belt" },
+  { "at": 491.05, "to": 496.0 },
+  { "at": 587.0, "to": 594.5, "sub": "STRIP THE ORE HAULERS" },
+  { "at": 703.5, "to": 710.0, "sub": "MASS DRIVERS" },
+  { "at": 839.0, "to": 845.0, "sub": "THE EXCAVATOR" },
+  { "at": 858.5, "to": 863.0 },
+
+  { "chapter": "Crimson Nebula" },
+  { "at": 888.2, "to": 893.0 },
+  { "at": 958.5, "to": 964.0, "sub": "STRAY BEAMS FROM A FLEET BATTLE", "pos": "raised" },
+  { "at": 1026.0, "to": 1031.0, "sub": "ION-STORM LIGHTNING", "pos": "raised" },
+  { "at": 1182.0, "to": 1185.5, "sub": "THE BATTLESHIP" },
+  { "at": 1305.0, "to": 1311.0, "sub": "THE FLAGSHIP" },
+
+  { "chapter": "Frozen Moon" },
+  { "at": 1350.85, "to": 1355.5 },
+  { "at": 1509.5, "to": 1516.5, "sub": "THE CANYON" },
+  { "at": 1621.5, "to": 1626.0 },
+  { "at": 1703.0, "to": 1708.5, "sub": "THE FORTRESS" },
+  { "at": 1715.5, "to": 1721.0 },
+
+  { "chapter": "The Corona" },
+  { "at": 1747.1, "to": 1752.0 },
+  { "at": 1883.5, "to": 1892.5, "sub": "ROLL THROUGH THE FLARES" },
+  { "at": 1967.0, "to": 1972.0, "sub": "MIRROR BEAMS" },
+  { "at": 2044.5, "to": 2048.8, "sub": "THE DYSON SHELL" },
+  { "at": 2177.0, "to": 2182.5 },
+  { "at": 2212.6, "to": 2218.0 },
+  { "at": 2231.0, "to": 2236.0 },
+
+  { "chapter": "Score" },
+  { "at": 403.5, "to": 409.0, "caption": "CHAIN ×4" },
+  { "at": 816.0, "to": 823.5, "caption": "CATCH EVERY MEDAL", "sub": "100 → 5,000" },
+  { "at": 1804.5, "to": 1811.0, "caption": "AIM FOR S" },
+
+  { "chapter": "Play" },
+  { "card": "end", "dur": 20, "from": 12, "bed": "open", "lines": ["5 LOCATIONS · 7 BOSSES", "FREE IN YOUR BROWSER", "CAN YOU STOP THE DREADNOUGHT?"], "url": "p0.muon.day", "fade": "out" }
+ ],
+ "thumb": { "at": 1968.2, "lines": ["A 3D ARCADE SHOOT 'EM UP"] },
+ "meta": {
+  "titles": [
+   "Pilot One: a 3D arcade shoot 'em up in your browser",
+   "Pilot One: 5 locations, 7 bosses, free in your browser",
+   "A 3D shmup that runs in a browser tab (Pilot One gameplay)"
+  ],
+  "description": "Pilot One is an arcade shoot 'em up in 3D space: fly a fixed rail, aim anywhere, roll to match the enemy wings, and barrel-roll through flares. Five locations and seven bosses, and it runs in your browser with no install.\n\nPlay free: https://p0.muon.day\n\nEverything in this video was played by our bot, which plays like a person: it sees only the screen, reacts after a human delay, and moves the mouse. The Dreadnought got away. Can you stop it?\n\nMusic and sound: synthesized by the game itself.",
+  "tags": ["Pilot One", "shmup", "shoot em up", "3D shooter", "browser game", "web game", "WebGL", "three.js", "arcade", "rail shooter", "indie game", "free game"]
+ }
+}

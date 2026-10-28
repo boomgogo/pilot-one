@@ -46,6 +46,34 @@ Gaps for promo video, found by reading the code:
    `Math.random` appears only in visual effects (`bosses.js`, `hulks.js`, `sfx.js` noise). So the same seed at the same
    viewport should replay the same run. This needs checking, because the plan relies on it (§3.3).
 
+Found in review, by running the recorder (Oct 28):
+
+9. **The evasive roll's double-tap is timed on the wall clock.** `src/core/input.js` `_rollTap` / `_rollRelease` use
+   `performance.now()` (a tap under 220 ms, the second press within 300 ms). The bot schedules its double-tap in game
+   time (down 0, up 75 ms, down 150 ms). With video (34 ms a frame at 720p on the Intel GPU) the rolls never register;
+   without video (3–4 ms a frame) ordinary roll-key presses read as double-taps:
+
+   | Run | Rolls the bot meant | Rolls the game registered |
+   |---|---|---|
+   | 1-5, expert, video | 2 | 0 (and 2 hits taken) |
+   | 1-5, expert, no video | 1 | 1 |
+   | L1, expert, no video | 1 | 7 |
+   | L2, average, no video | 3 | 12 |
+
+   So a scout (no video) and a shoot (video) of the same seed are different runs, a no-video vs no-video determinism
+   check can't see it, and the §12 bot numbers spend scarce rolls at random. Fix: in `?capture`, input times taps
+   on the game clock. Live play is unchanged.
+10. **More settings change the run.** `--q` changes the number of shootable field rocks (`sceneryRocks` 0.45 / 0.75 /
+    1.0, `fields.js`). The bot's idle wander uses absolute game time, so anything that shifts the clock (a hold that
+    only runs with video, attract time before Start) changes everything after it. Scout and shoot must use the same
+    `--q`, size, holds and start time.
+11. **The star map launches itself on the wall clock** (a 9 s `setInterval` in `main.js` `toStarMap`). In a held star
+    map at capture speed it fires mid-hold, and its countdown text ticks at wall-clock times. In `?capture` the
+    recorder launches instead.
+12. **Whole-campaign sound is one 40-minute offline render** returned as base64 (~280 MB, three times over with
+    stems). `renderRecording` also drops music cues before `t0`, so a later window starts silent until the next cue.
+    Render per segment instead, carrying the song in force at the window start, at its phase.
+
 ## 2. Deliverables
 
 All go to `recordings/videos/`, which is git-ignored.
@@ -76,24 +104,32 @@ All the audio is the game's own synthesized music and effects (MIT), so there's 
 
 ### 3.1 Recorder (`record.js`)
 
-1. **`--dpr N`** sets `deviceScaleFactor`. Add the same option to `shots.js` for previews.
-2. **Holds advance the clock.** Every held frame (game over, location clear, star map, ending) runs `advance(1)` and
-   then a screenshot, so frames and game time stay 1:1 and the sound stays in sync.
+0. **Capture-only fixes in the game** (gaps 9 and 11): input takes a clock (`input.clock`, game time in `?capture`,
+   `performance.now()` otherwise) for the double-tap; `toStarMap` doesn't start its countdown in `?capture`. The
+   existing presets' event streams change with the tap fix, so the §12 baseline is re-measured after it.
+1. **`--dpr N`** sets `deviceScaleFactor`. Add the same option to `shots.js` for previews. `--dpr` above 1.35 needs
+   `--q high` (the `medium` tier caps the pixel ratio at 1.35), so the recorder warns otherwise.
+2. **Holds advance the clock, with or without video.** Every held frame (game over, location clear, star map,
+   ending) runs `advance(1)`, plus a screenshot when there's video, so frames and game time stay 1:1, the sound stays
+   in sync, and a scout replays the same clock as its shoot.
 3. **Between-location sequence**, with these hold lengths in frames:
    - location clear: `--hold-clear 240`
    - `ui.map()`, then wait (wall clock, no frames) until Launch is enabled
    - star map: `--hold-map 200`
    - `ui.launch()`, which starts the jump: stars streak, a flash, the new system
    - ending: 300
-4. **`--attract S`** records S seconds of the title screen's attract flight before Start. **`--clean`** injects CSS that
-   hides `#version`, and with `--attract` it also hides `#screen-title`, giving a clean fly-by for title and end cards.
+4. **`--attract S`** records S seconds of the title screen's attract flight and then stops: a take of its own, so
+   it never shifts the clock of a game take (gap 10). **`--clean`** injects CSS that hides `#version`, and with
+   `--attract` it also hides `#screen-title`, giving a clean fly-by for title and end cards.
 5. **Per-location segments.** In `--campaign` mode the video goes to one file per location (`L1.mp4` … `L5.mp4`, plus
    `attract.mp4`), each with the game time of its first frame written to the meta file.
    **`--video-locs 3,5`** captures only those locations and fast-forwards through the rest without screenshots, at
    telemetry speed. The output goes to a folder per take: `recordings/<date>-<ver>-<skill>-s<seed>-<WxH>/`.
-6. **Stems.** `renderAudio(t0, { music, sfx })` gains flags (a small change in `src/audio/sfx.js` `renderRecording`,
-   passed through `__bg`). Each take writes `mix.wav`, `sfx.wav` and `music.wav`, all un-normalised, so their relative
-   levels stay true. The per-segment mp4s keep a normalised mix for quick viewing.
+6. **Stems, per segment.** `renderAudio(t0, { t1, music, sfx })` gains a window end and flags (a small change in
+   `src/audio/sfx.js` `renderRecording`, passed through `__bg`). The music cue in force at `t0` is carried in at its
+   phase (gap 12). Each segment writes `<seg>.mix.wav`, `<seg>.sfx.wav` and `<seg>.music.wav`, un-normalised. Music and
+   effects share one compressor in the game, so the stems add up to the mix only approximately; that's fine for a
+   music bed under the effects. The per-segment mp4s keep a normalised mix for quick viewing.
 7. **Master quality** (`--master`): JPEG quality 95 in, x264 CRF 14 out.
 8. **Optional polish:** in `?capture`, `countUp` in `src/ui/screens.js` jumps straight to the final numbers. Driving it
    from `game.time` instead makes the tally count up on video. It only runs in capture mode, so there's no cost in play.
@@ -128,19 +164,22 @@ medal chains come for free.
 
 ### 3.3 Scout, then shoot
 
-1. **Determinism check.** Run the same seed twice with `--no-video --campaign`, at the same size, and compare the
-   event streams (kill times, power, stage clears). They should match exactly.
-2. **Scout.** Run 6–8 seeds of the showcase campaign with `--no-video` at 1280×720, and 4–6 at 540×960 for the Short.
+1. **Determinism check.** Run the same seed with and without video, at the same size and `--q`, over a stretch with
+   evasive rolls and a hold (1-5, and 1-8 through the jump), and compare the event streams (kill times, power, evades,
+   stage clears). They should match exactly. Two no-video runs can't catch wall-clock effects (gap 9).
+2. **Scout.** Run 6–8 seeds of the showcase campaign with `--no-video --q high` at 1280×720, and 4–6 at 540×960 for
+   the Short. The scout uses the same `--q`, size and holds as the shoot; `--dpr`, `--clean` and `--master` don't
+   change the run.
    Telemetry-only runs are fast. Rank the takes with `analyze.js highlights --rank` (§3.4). A good take:
    - reaches location 5 without a continue (a continue resets the score on the HUD)
    - holds SPIRAL or FULL for a long time
    - has S grades, a ×4 chain, and a 5,000 medal
    - reaches the Dreadnought
 3. **Shoot.**
-   - **Landscape:** the chosen seed, at 1280×720 with `--dpr 2 --q high --master --clean --attract 20`, all five
-     locations. This one master feeds both the YouTube and X cuts.
-   - **Portrait:** 540×960 with `--dpr 2`, which is 1080×1920 with a phone-sized HUD. Capture only the locations the
-     Short uses, with `--video-locs`.
+   - **Landscape:** the chosen seed, at 1280×720 with `--dpr 2 --q high --master --clean`, all five locations. This
+     one master feeds both the YouTube and X cuts. The attract fly-by is its own take (`--attract 40 --clean`).
+   - **Portrait:** 540×960 with `--dpr 2 --q high`, which is 1080×1920 with a phone-sized HUD. Capture only the
+     locations the Short uses, with `--video-locs`.
 
    If the determinism check fails, the shoot run becomes its own scout: shoot two or three seeds with video on and keep
    the best.
@@ -255,7 +294,9 @@ playback. There are captions on every beat.
 
 ## 4. Steps
 
-1. **Recorder groundwork** (§3.1, items 1–7).
+1. **Recorder groundwork** (§3.1, items 0–7).
+   - Re-run the §12 baseline (`--skill average` and `expert`, `--no-video`, L1–L2) after the tap fix, and note the
+     change in `next_0.md`.
    - Check sync: record from 1-8 with `--campaign --params stage=8` through the clear screen, the map and the jump into
      location 2, at `--max` 180 s. Audio onsets from `analyze.js video` should line up with telemetry kill times to
      within a frame on both sides of the holds.
@@ -268,7 +309,7 @@ playback. There are captions on every beat.
    - Tune on L1–L2 against the targets.
    - Re-run `--skill expert --no-video` on seed 1 to confirm the existing presets are unchanged (identical event stream).
 4. **Highlights** (§3.4), including the medal value in the `pickup` event.
-5. **Portrait check** before scouting: `npm run shots -- --size 540x960 --dpr 2 --at 5,40,90`, then look at the frames
+5. **Portrait check** before scouting: `npm run shots -- --size 540x960 --dpr 2 --q high --at 5,40,90`, then look at the frames
    for HUD overlap and hints that only make sense on desktop. If portrait doesn't work with the desktop HUD, fall back
    to an 810×1440 centre crop of the landscape master, scaled to 1080×1920, and say so in `next_0.md`.
 6. **Scout** both sizes and pick the takes. The landscape seed and take go in `next_0.md`.
@@ -295,13 +336,15 @@ playback. There are captions on every beat.
 | Flashes (explosions, the bomb) exceed about 3 per second in some windows | `analyze.js video` flags them. Re-shoot those windows with the reduce-flash option set through `localStorage` (`pilotone.v1`), or avoid them in the edit. It must be decided before scouting, as a re-shoot may change the run |
 | The `high` tier looks better than most players' devices | It's the same game at its top setting, which is common practice; no caption claims otherwise |
 | Platform limits change | §2's numbers come from third-party guides and X's API docs (Oct 2026). Check them in YouTube Studio and on X at upload |
+| Some other wall-clock timer changes a run in `?capture` | The video-vs-no-video determinism check (§3.3.1) finds it; known ones: the double-tap and the star map's countdown (fixed), the clear screen's grade pop-in (`setTimeout`, cosmetic only) |
 
 ## 6. Questions for you
 
-1. **The URL** for the end cards and descriptions: the workers.dev address, a custom domain, or Maize.Live?
+1. **The URL** for the end cards and descriptions: **p0.muon.day** (answered).
 2. **Is the X account Premium?** If not, X plays 1080p uploads at 720p and caps length at 140 s. The plan already
-   fits inside both limits.
-3. **The `v.xxxx` version label:** hide it in the videos (`--clean`, the plan's default) or keep it?
+   fits inside both limits. (Default: assume not Premium.)
+3. **The `v.xxxx` version label:** hide it in the videos (`--clean`, the plan's default) or keep it? (Default:
+   hidden.)
 
 ## 7. Sources for the platform limits
 

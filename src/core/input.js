@@ -34,6 +34,7 @@ export class Input {
     this._padPrev = [];
     this.onPointerLockChange = null;
     this.ignoreBlur = false; // automation: synthetic key state must survive focus changes
+    this.clock = () => performance.now(); // ms, for the double-tap; ?capture times it on the game clock (stepped frames)
     this._bind();
   }
 
@@ -173,7 +174,7 @@ export class Input {
 
   /** A press of a roll key / button: right after a tap of the same one, it's an evasive roll that way. */
   _rollTap(side) {
-    const now = performance.now();
+    const now = this.clock();
     if (this._tapShort[side] && now - this._tapT[side] < DOUBLE_TAP_MS) {
       this._edges['evade' + side] = true;
       this._tapT[side] = -1e9; // a triple tap is one roll, not two
@@ -182,7 +183,7 @@ export class Input {
   }
 
   _rollRelease(side) {
-    this._tapShort[side] = performance.now() - this._tapT[side] < TAP_MS;
+    this._tapShort[side] = this.clock() - this._tapT[side] < TAP_MS;
   }
 
   requestLock() {

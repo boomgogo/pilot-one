@@ -92,8 +92,8 @@ roll, bosses and the bomb, the dark, and a final exam (the mothership). New play
 - **Landing:** each location ends with an automatic landing on the carrier, with the camera pulled back to show the
   deck. Then the location clear screen (tally, records, full shield and bombs back to 2), the star map, and a jump
   that launches by itself once the next location is loaded.
-- **Ending:** "You've completed all missions for now! Thanks for bringing peace to our galaxy! Play again to get a
-  higher score." If the last boss gets away, the game ends without the ending.
+- **Ending** (`src/ui/screens.js` `showEnding`): "THE DREADNOUGHT IS DOWN" with the clear bonus, or, if it gets
+  away, "THE DREADNOUGHT ESCAPED" with the game-over music. Both show the run's tally and the name entry.
 
 ### 4.4 Starting and records
 
@@ -207,7 +207,8 @@ per stage (12 live enemy bullets in location 4, 18 in location 5) makes enemy, h
   skill that location 1 teaches.
 - **Feeders:** during a boss fight, a 3–4 dart wave crosses in front of the boss every 6–8 s. Outside boss fights, a
   lull filler sends one when there's been no kill for 8 s and fewer than 4 enemies are in the air (never during
-  lessons or the landing). Feeders don't fire in locations 1–2, and fire at half rate after that.
+  lessons or the landing). Feeders don't fire in locations 1–2, and fire at half rate after that. The lull filler
+  doesn't fire in a stage's last section yet, which is the whole of most stages: a bug (§14).
 
 ### 7.4 Readability
 
@@ -254,9 +255,10 @@ All in `scripts/`. See the README for the commands.
 
 | Tool | What it does |
 |---|---|
-| `play/bot.js` | plays like a person: real input events, sees only the screen through a 180–300 ms reaction delay, Fitts-like mouse moves. Never writes game state. |
-| `play/record.js` | frame-exact 60 fps video, sound and telemetry; real-time play (`npm run play`, also `--human`); whole-campaign runs |
-| `play/analyze.js` | `telemetry`: what was on screen, kill cadence, enemy fire by class and its escape time, hit fairness, per-stage and per-location tables, the dodge probe. `video`: motion, flashes, audio onsets and loudness from any video. `chart`: motion over time as SVG. |
+| `play/bot.js` | plays like a person: real input events, sees only the screen through a 180–300 ms reaction delay, Fitts-like mouse moves. Never writes game state. Presets `average`, `expert`, and `showcase` (a calm, good player for video: capped aim speed, sticks to a target, prefers centred targets, bombs into bullet curtains) |
+| `play/record.js` | frame-exact 60 fps video, sound and telemetry; real-time play (`npm run play`, also `--human`); whole-campaign takes (one video and sound stems per location, `--video-locs`), `--dpr`, `--attract` fly-bys, `--clean`, `--master`. A run depends only on seed, size, `--q` and holds: video and no-video runs are identical |
+| `play/analyze.js` | `telemetry`: what was on screen, kill cadence, enemy fire by class and its escape time, hit fairness, per-stage and per-location tables, the dodge probe. `video`: motion, flashes, audio onsets and loudness from any video. `chart`: motion over time as SVG. `highlights`: a take's tagged moments and windows to avoid; `--rank` scores takes for showcase use. |
+| `play/edit.js` | `npm run video -- youtube\|short\|x`: cuts a take into a platform video from an edit list (`play/edits/*.json`): captions and cards rendered by Chrome, music beds from the stems, −14 LUFS, checks against the platform's numbers |
 | `src/game/telemetry.js` | the in-game side: records every 0.25 s, plus events; the dodge probe flies the ship's escape in 8 directions against each threat |
 | `play/probe-volleys.js` | checks that no two bolts of a volley ever cross |
 | `rail-check.js` | per location and route: length, speed, darkness, sun angle |
@@ -272,19 +274,23 @@ All in `scripts/`. See the README for the commands.
 
 Our own targets, measured with the bot (average and expert skill):
 
+The shoot-down ratios are from seed 1, `--q medium`, after the double-tap fix (Oct 28: in `?capture` the evasive
+roll's double-tap is timed on the game clock). Before it, ordinary roll-key presses registered as extra evasive rolls
+at telemetry speed, which gave the bots free invulnerability and 2–10 points more.
+
 | Measure | Target | Latest |
 |---|---|---|
 | Enemy bullets on screen, location 1 | mean 1.5–3, p90 ≤ 6, bosses up to about 15 | — |
 | Enemy fire on screen, location 5 (mean) | ≤ 7 | 4.7–5.2 |
 | Enemies on screen, location 5 (mean) | ≥ 9 | 7.8–9.1 |
 | Hits warned (marker ≥ 0.3 s) and visible (≥ 0.4 s) before impact | ≥ 95% | 87–100% in location 5 |
-| Shoot-down ratio, average bot, locations 1–4 | ≥ 70% | 67–91% |
-| Shoot-down ratio, expert, locations 1–4 | ≥ 85% | 94–97% |
+| Shoot-down ratio, average bot, locations 1–4 | ≥ 70% | 69–89% (L1 89, L2 69, L3 81, L4 78) |
+| Shoot-down ratio, expert, locations 1–4 | ≥ 85% | 84–93% (L1 92, L2 87, L3 93, L4 84) |
 | Expert after its first lost ship | within 15 points of before | 88–95% |
 | Back to QUAD after a lost ship, median | ≤ 30 s | 4–30 s |
 | Longest gap with no kill | ≤ 12 s | 15–31 s (not met) |
 | Player stream on screen while firing | ≥ 25% of screen height | median 40% |
-| Location 5 outcome | doesn't clear | both bots reach the Dreadnought; it escapes |
+| Location 5 outcome | doesn't clear | both bots reach the Dreadnought; it escapes. The showcase bot destroys it in 1 of 14 campaigns (Oct 28 scout) |
 
 ## 13. How it got here
 
@@ -303,16 +309,27 @@ Our own targets, measured with the bot (average and expert skill):
 
 1. **Playtest by people:** a lost ship and getting the power back; whether the chain and medals are worth chasing;
    location 5 (`?loc=5`); name entry on a phone and with a gamepad.
-2. **Empty screens:** after a wave is cleared, 32–42% of samples in locations 1, 3 and 4 have no enemy on screen.
-   Start the next wave sooner when the screen empties.
-3. **Location 5's wall:** both bots reach the Dreadnought. Decide whether that should be rarer.
-4. **Lulls:** gaps with no kill of 15–31 s remain (location 1 lessons, tallies, asteroid fields, the battleship and
-   canyon). Count rocks toward the chain, or add feeders to stage transitions.
+2. **Empty screens:** with the showcase bot, no enemy is on screen in 35–50% of the samples in locations 1–4 (27% in
+   location 5); hazard sections are the emptiest (geysers 65%, storm 62%, battleship 61%). Waves run on fixed
+   timelines, so a fast player waits. Pull a section's wave clock forward when the screen has been empty for about a
+   second, and add waves on top of the hazards.
+3. **Location 5's wall:** the Dreadnought escapes in 13 of 14 showcase campaigns with no visible timer, so the run
+   ends on the escape screen. Show the time left, and say on the escape screen how close it was. The Gatekeeper
+   escapes in 14 of 14 with 0–2 of 6 turrets down: check that people can read and hit the turrets.
+4. **Lulls:** gaps with no kill of 15–33 s remain. First fix the lull filler: `director()` in `game.js` skips it
+   whenever `st.stageEnding`, which is true for the whole last section; it should skip only the tally
+   (`!(st.stageEnding && st.remaining <= TRANSIT)`). Then re-measure.
 5. **Formations:** entries from behind with a 1.2 s warning, side columns of 5, rammers that lead the ship.
-6. **Bomb readability:** check it on video.
+6. **Bomb readability:** reads well on video in location 5 (the cyan ring); in the location 4 cavern it is a faint
+   wave in the dark.
 7. **Tech:** merge hulk draw calls (41 in the refinery), whole-game loudness, gamepad focus on the location clear and
    star map screens.
 8. **Not tested yet:** a real phone and a real gamepad.
+9. **Goals once power is full:** FULL comes at 4:14, and SPIRAL or FULL holds for 93–100% of locations 2–4; the
+   medal ladder tops out after six catches. Give extra POWs a use, keep the ladder climbing past 5,000, and make a
+   missed medal loud.
+10. **Threat and spectacle in locations 2–4:** 0.2–0.9 enemy bullets on screen (most hits come from hazards), bosses
+    that never take a ship, hulks that pass far away, small boss deaths. Numbers and ideas: `ai/next_0.md`.
 
 ## 15. Working conventions
 

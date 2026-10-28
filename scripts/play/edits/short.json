@@ -1,0 +1,22 @@
+{
+ "target": "short",
+ "take": "recordings/shoot/20261028-b20b-showcase-s4-540x960@2",
+ "attract": "recordings/shoot/20261028-b20b-attract-540x960@2",
+ "beds": {
+  "run": { "seg": "L5", "at": 1810 }
+ },
+ "entries": [
+  { "at": 1881.6, "dur": 2.4, "bed": "run", "caption": "3D SHMUP", "sub": "IN YOUR BROWSER" },
+  { "at": 1788.6, "dur": 6.0, "bed": "run", "caption": "ROLL TO MATCH" },
+  { "at": 2035.6, "dur": 8.0, "bed": "run" },
+  { "at": 1847.8, "dur": 6.5, "bed": "run", "caption": "BOMB" },
+  { "at": 2213.4, "dur": 4.0, "bed": "run" },
+  { "at": 2228.4, "dur": 3.0, "bed": "run" },
+  { "at": 2280.4, "dur": 6.0, "bed": "run" },
+  { "card": "end", "dur": 4.5, "from": 2, "bed": "run", "lines": ["PLAY FREE"], "url": "p0.muon.day" }
+ ],
+ "meta": {
+  "titles": ["Pilot One: a 3D shmup in your browser #shorts"],
+  "description": "Pilot One: an arcade shoot 'em up in 3D space. 5 locations, 7 bosses, free in your browser, no install.\nPlay: https://p0.muon.day\n\nPlayed by our human-like bot. Music and sound are synthesized by the game.\n\n#shorts #shmup #gamedev #webgl #indiegame"
+ }
+}

@@ -6,6 +6,22 @@ const EFFECTS = [
   'extraLife', 'whoosh', 'evade', 'missile', 'lockWarn', 'laser', 'shellPop', 'cancel', 'tick', 'zap', 'rumble', 'jump',
 ];
 
+/**
+ * Fill an OfflineAudioContext about a second at a time: fill(k, len) runs now for k = 0, then at the start of each
+ * later ~1 s chunk (a render-quantum boundary). Scheduling a whole render up front keeps every future note in the
+ * audio graph from the start, which made a minute of music take two minutes to render.
+ */
+export function offlineChunks(ctx, dur, fill) {
+  const len = (128 * 344) / ctx.sampleRate;
+  fill(0, len);
+  for (let k = 1; k * len < dur; k++) {
+    ctx.suspend(k * len).then(() => {
+      fill(k, len);
+      ctx.resume();
+    });
+  }
+}
+
 export class Sfx {
   constructor() {
     this.ctx = null;
@@ -75,43 +91,56 @@ export class Sfx {
     }
   }
 
-  /** Render the recorded calls (from game time t0) with an OfflineAudioContext. Returns a base64 mono WAV. */
-  async renderRecording(t0 = 0, sampleRate = 44100) {
-    const all = (this.recording || []).filter((e) => e[0] >= t0);
+  /**
+   * Render the recorded calls from game time t0 with an OfflineAudioContext. Returns a base64 mono WAV.
+   * t1: the window's end (default: the last call + 3 s). lead: calls this long before t0 still play, at the start
+   * (the ones made by the click or launch that opens a video segment). music / effects: false leaves that part out
+   * (stems for the video editor, ai/plan_0.md §3.1). The song playing before the window is carried in at its phase.
+   */
+  async renderRecording(t0 = 0, { t1 = null, lead = 0, music = true, effects = true } = {}, sampleRate = 44100) {
+    const rec = this.recording || [];
     const isMusic = (e) => e[1] === 'music' || e[1] === 'jingle';
-    const ev = all.filter((e) => !isMusic(e));
-    const dur = (all.length ? Math.max(all[all.length - 1][0], this.clock?.() ?? 0) - t0 : 0) + 3;
+    const end = t1 ?? (rec.length ? Math.max(rec[rec.length - 1][0], this.clock?.() ?? 0) : t0) + 3;
+    const all = rec.filter((e) => e[0] >= t0 - lead && e[0] < end).map((e) => (e[0] < t0 ? [t0, e[1], e[2]] : e));
+    const ev = effects ? all.filter((e) => !isMusic(e)) : [];
+    const before = rec.filter((e) => e[0] < t0 - lead && e[1] === 'music').pop();
+    const dur = Math.max(0.1, end - t0);
     const ctx = new OfflineAudioContext(1, Math.ceil(dur * sampleRate), sampleRate);
     const sfx = new Sfx();
     sfx.offline = true;
     sfx.volume = this.volume;
     sfx.initWith(ctx);
-    if (this.music) {
+    let pump = null;
+    if (this.music && music) {
       // the music, from the same song data and cue times (src/audio/music.js)
       const mu = new this.music.constructor(sfx);
       mu.songs = this.music.songs;
       mu.volume = this.music.volume;
-      mu.renderOffline(ctx, sfx.comp, all.filter(isMusic), t0, dur);
+      pump = mu.renderOffline(ctx, sfx.comp, [...(before ? [before] : []), ...all.filter(isMusic)], t0, dur);
     }
-    const groups = new Map(); // suspend() needs one distinct render-quantum boundary per call
-    for (const e of ev) {
-      const k = Math.max(1, Math.ceil(((e[0] - t0) * sampleRate) / 128));
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(e);
-    }
-    for (const [k, list] of groups) {
-      ctx.suspend((k * 128) / sampleRate).then(() => {
-        for (const [, name, args] of list) sfx[name](...args);
-        ctx.resume();
-      });
-    }
+    // the calls go in about a second ahead of the render, each at its own time (sfx.at)
+    let i = 0;
+    offlineChunks(ctx, dur, (k, len) => {
+      for (; i < ev.length && ev[i][0] - t0 < (k + 1) * len; i++) {
+        const [t, name, args] = ev[i];
+        sfx.at = Math.max(0, t - t0);
+        sfx[name](...args);
+      }
+      sfx.at = null;
+      pump?.((k + 2) * len);
+    });
     const buf = await ctx.startRendering();
     return wavBase64(buf.getChannelData(0), sampleRate);
   }
 
+  /** The audio clock. An offline render sets `at` to schedule a call at its own time. */
+  now() {
+    return this.at ?? this.ctx.currentTime;
+  }
+
   _ok(name, minGap) {
     if (!this.ctx || this.muted || (!this.offline && this.ctx.state !== 'running')) return false;
-    const t = this.ctx.currentTime;
+    const t = this.now();
     if (this.last[name] && t - this.last[name] < minGap) return false;
     this.last[name] = t;
     return true;
@@ -119,7 +148,7 @@ export class Sfx {
 
   _tone(type, f0, f1, dur, gain, delay = 0) {
     const c = this.ctx;
-    const t = c.currentTime + delay;
+    const t = this.now() + delay;
     const o = c.createOscillator();
     const g = c.createGain();
     o.type = type;
@@ -134,7 +163,7 @@ export class Sfx {
 
   _noise(dur, gain, f0, f1, q = 0.7, delay = 0, type = 'lowpass') {
     const c = this.ctx;
-    const t = c.currentTime + delay;
+    const t = this.now() + delay;
     const src = c.createBufferSource();
     src.buffer = this.noise;
     const flt = c.createBiquadFilter();

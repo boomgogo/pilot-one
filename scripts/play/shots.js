@@ -2,7 +2,7 @@
 // Screenshots at chosen game times, played by the bot (for checking a location's look and its transitions).
 //
 //   node scripts/play/shots.js [--loc 2] [--section id:seconds] [--at 3,8,20] [--out dir] [--q medium] [--size 1280x720]
-//                              [--params god,k=v] [--angle gl] [--skill average] [--no-build] [--stats]
+//                              [--dpr 1] [--params god,k=v] [--angle gl] [--skill average] [--no-build] [--stats]
 //
 // Serves dist/, plays with ?bot&capture (stepped frames), and saves <out>/<loc>-<t>.jpg at each time in --at
 // (seconds after Start). With --stats each shot also prints draw calls, triangles and the frame's CPU time.
@@ -52,7 +52,7 @@ const browser = await chromium.launch({
   headless: !a.headed,
   args: [`--use-angle=${a.angle || 'gl'}`, '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--hide-scrollbars'],
 });
-const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: +(a.dpr || 1) });
 const errors = [];
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
@@ -81,17 +81,19 @@ for (const t of times.sort((x, y) => x - y)) {
     if (s === 'at') break;
     if (s === 'over') await page.evaluate(() => window.__bg.ui.cont());
     else if (s === 'locclear') {
-      // the between-location screens: location clear, star map, then the jump into the next location
-      await page.waitForTimeout(2500);
+      // the between-location screens: location clear, star map, then the jump into the next location. Their
+      // tallies run on the game clock in ?capture (src/ui/screens.js), so they get game frames, not wall time
+      const hold = (n) => page.evaluate((n) => window.__bg.advance(n), n);
+      await hold(150);
       await page.screenshot({ path: join(out, `${loc}-clear.jpg`), type: 'jpeg', quality: 85 });
       const st = await page.evaluate(() => (window.__bg.ui.map(), window.__bg.game.state));
       if (st === 'ended') {
-        await page.waitForTimeout(2500);
+        await hold(150);
         await page.screenshot({ path: join(out, `${loc}-ending.jpg`), type: 'jpeg', quality: 85 });
         break;
       }
       await page.waitForFunction(() => !document.getElementById('launch-btn').disabled, null, { timeout: 30000 });
-      await page.waitForTimeout(2200);
+      await hold(132);
       await page.screenshot({ path: join(out, `${loc}-map.jpg`), type: 'jpeg', quality: 85 });
       await page.evaluate(() => window.__bg.ui.launch());
       console.log('  launched into the next location');

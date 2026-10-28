@@ -1,0 +1,28 @@
+{
+ "target": "x",
+ "take": "recordings/shoot/20261028-b20b-showcase-s7-1280x720@2",
+ "attract": "recordings/shoot/20261028-b20b-attract-1280x720@2",
+ "beds": {
+  "tour": { "seg": "L5", "at": 1813 }
+ },
+ "entries": [
+  { "at": 1851.0, "dur": 3.2, "caption": "A 3D ARCADE SHMUP", "sub": "IN YOUR BROWSER" },
+
+  { "at": 16.0, "dur": 4.8, "caption": "AIM ANYWHERE", "sub": "YOUR SHOTS LEAD THE TARGET" },
+  { "at": 177.5, "dur": 4.8, "caption": "ROLL TO MATCH THEIR WINGS", "sub": "ALIGNED KILLS SCORE DOUBLE" },
+  { "at": 242.5, "dur": 4.8, "caption": "5 POWER LEVELS", "sub": "TWIN · QUAD · MISSILES · SPIRAL · FULL" },
+  { "at": 1883.5, "dur": 4.8, "caption": "BARREL ROLL THROUGH FLARES" },
+  { "at": 420.5, "dur": 4.8, "caption": "THE BOMB CLEARS BULLETS" },
+
+  { "at": 590.0, "dur": 2.0, "bed": "tour", "caption": "5 LOCATIONS", "sub": "THE BELT" },
+  { "at": 1027.0, "dur": 2.0, "bed": "tour", "caption": "5 LOCATIONS", "sub": "CRIMSON NEBULA", "pos": "raised" },
+  { "at": 1512.0, "dur": 2.0, "bed": "tour", "caption": "5 LOCATIONS", "sub": "FROZEN MOON" },
+  { "at": 1967.6, "dur": 2.0, "bed": "tour", "caption": "5 LOCATIONS", "sub": "THE CORONA" },
+  { "at": 2215.0, "dur": 2.0, "bed": "tour", "caption": "7 BOSSES" },
+
+  { "card": "end", "dur": 7, "from": 2, "bed": "tour", "lines": ["FREE IN YOUR BROWSER · NO INSTALL", "CAN YOU STOP THE DREADNOUGHT?"], "url": "p0.muon.day", "fade": "out" }
+ ],
+ "meta": {
+  "post": "Pilot One: an arcade shoot 'em up in 3D space. Aim anywhere, roll to match their wings, barrel-roll through solar flares. 5 locations, 7 bosses, free in your browser. (Played by our bot.)\n\nCan you stop the Dreadnought? https://p0.muon.day\n\n#shmup #gamedev #webgl #indiegame"
+ }
+}

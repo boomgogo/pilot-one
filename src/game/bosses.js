@@ -360,7 +360,7 @@ export class Boss {
     g.hud.hitMarker(p.hp <= 0);
     if (p.hp > 0) return;
     g.tutor?.onBossPart(p.core);
-    g.tm?.event('boss', { name: this.name, part: p.name, bt: +this.t.toFixed(1) });
+    g.tm?.event('boss', { name: this.name, part: p.name, bt: +this.t.toFixed(1), ...(p.core ? { core: true } : {}) });
     p.alive = false;
     p.mesh.visible = false;
     g.onPartKilled(p.world, p.core ? 3 : 2, p.core ? this.def.score : this.def.partScore, 1.5);

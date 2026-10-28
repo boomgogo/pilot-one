@@ -9,15 +9,29 @@ const MEDALS = [
   ['allS', 'ALL S'],
 ];
 
+// ms. ?capture steps the game clock instead of running in real time, so main.js hands it in here: the tally counts
+// up and the grades pop in on video at the speed they do in play
+let clock = () => performance.now();
+export function setUiClock(fn) {
+  clock = fn;
+}
+
+/** Run fn once `ms` have passed on the UI clock. */
+function after(ms, fn) {
+  const t0 = clock();
+  const step = () => (clock() - t0 >= ms ? fn() : requestAnimationFrame(step));
+  requestAnimationFrame(step);
+}
+
 /** Count numbers up from 0 in elements carrying data-v (a short, rising tally). */
 function countUp(root, fmt) {
   const els = [...root.querySelectorAll('[data-v]')];
-  const t0 = performance.now();
-  const capture = document.body.classList.contains('capture');
-  const step = (now) => {
+  const t0 = clock();
+  const step = () => {
+    const now = clock();
     let busy = false;
     els.forEach((el, i) => {
-      const k = capture ? 1 : Math.min(1, Math.max(0, (now - t0 - 250 - i * 220) / 500));
+      const k = Math.min(1, Math.max(0, (now - t0 - 250 - i * 220) / 500));
       el.textContent = fmt(Math.round(+el.dataset.v * k));
       if (k < 1) busy = true;
     });
@@ -36,7 +50,7 @@ export function showLocationClear(rec, fresh, fmt) {
   $('clear-name').textContent = rec.name;
   const g = $('clear-grades');
   g.innerHTML = rec.grades.map((x, i) => `<span class="grade g${x}"><small>${rec.index + 1}-${i + 1}</small>${x}</span>`).join('');
-  [...g.children].forEach((el, i) => setTimeout(() => el.classList.add('in'), 200 + i * 140));
+  [...g.children].forEach((el, i) => after(200 + i * 140, () => el.classList.add('in')));
   const rows = [...rec.rows, ['Location shot down', `${Math.round(rec.pct * 100)}%`], ['Score', rec.score]];
   const t = $('tally');
   t.innerHTML = rows

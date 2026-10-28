@@ -236,7 +236,7 @@ export class Music {
         p.jumpTo = undefined;
       }
       const t = p.t0 + p.step * sd;
-      for (const e of c.events[k] || []) this._voice(ctx, p, e, t, sd);
+      if (!(t < p.skipBefore)) for (const e of c.events[k] || []) this._voice(ctx, p, e, t, sd);
       p.step++;
     }
   }
@@ -328,7 +328,8 @@ export class Music {
 
   /**
    * ?capture: render the logged music cues into an OfflineAudioContext (the same song data and game times as the
-   * live game). events: [[time, 'music'|'jingle', [name, tr]]]; t0: the recording's start.
+   * live game). events: [[time, 'music'|'jingle', [name, tr]]]; t0: the recording's start. Returns pump(to), which
+   * schedules the notes up to time `to`: call it with rising times as the render goes (sfx.js offlineChunks).
    */
   renderOffline(ctx, dest, events, t0, dur) {
     this.ctx = ctx;
@@ -344,18 +345,20 @@ export class Music {
     this.delay.connect(this.out);
     let main = null;
     const end = dur;
-    const cues = events.map(([t, kind, args]) => ({ t: Math.max(0, t - t0), kind, song: this.songs[args[0]], tr: args[1] }));
+    const players = []; // [player, the time it stops]
+    // a cue before t0 (the song already playing when the window starts) keeps its phase: its earlier notes are skipped
+    const cues = events.map(([t, kind, args]) => ({ t: t - t0, kind, song: this.songs[args[0]], tr: args[1] }));
     cues.forEach((c, i) => {
       if (!c.song) return;
-      const p = { song: c.song, t0: c.t, step: 0, gain: ctx.createGain(), once: c.kind === 'jingle', tr: c.kind === 'jingle' ? c.tr : 0 };
+      const p = { song: c.song, t0: c.t, step: 0, gain: ctx.createGain(), once: c.kind === 'jingle', tr: c.kind === 'jingle' ? c.tr : 0, skipBefore: 0 };
       p.gain.connect(this.out);
       if (c.kind === 'music') {
         const next = cues.slice(i + 1).find((q) => q.kind === 'music');
         main = p;
-        this._schedule(p, next ? next.t : end, ctx);
+        players.push([p, next ? next.t : end]);
         if (next) p.gain.gain.setTargetAtTime(0, next.t, 0.2);
       } else {
-        this._schedule(p, end, ctx);
+        players.push([p, end]);
         const len = this._compile(c.song).steps * this._stepDur(c.song);
         if (main) {
           main.gain.gain.setTargetAtTime(0.3, c.t, 0.05);
@@ -363,6 +366,9 @@ export class Music {
         }
       }
     });
+    return (to) => {
+      for (const [p, until] of players) if (!p.dead) this._schedule(p, Math.min(until, to), ctx);
+    };
   }
 }
 

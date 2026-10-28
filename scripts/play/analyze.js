@@ -5,12 +5,18 @@
 //                                      [--sheet] [--out recordings/analysis]
 //   node scripts/play/analyze.js telemetry <file.telemetry.json> [--label name] [--height 720]
 //   node scripts/play/analyze.js chart <a.video.json> <b.video.json> ... [--file out.svg]
+//   node scripts/play/analyze.js highlights <take dir> [--top 12]
+//   node scripts/play/analyze.js highlights --rank <take dir> <take dir> ...
 //
 // "video" measures the same things on every video, from pixels and sound only (so any two videos are
 // comparable): motion energy over time, explosion/flash events, audio onsets (shots, hits, explosions), loudness
 // range and lulls.
 // "telemetry" reads our game's own records: what was on screen, kill cadence, enemy fire by class with its escape
 // time, shot travel time, and hit fairness (was the culprit visible / marked before impact).
+// "highlights" reads a take (record.js --campaign: a folder with telemetry.json and meta.json) and writes
+// highlights.json: tagged moments (power, aligned, evade, bomb, boss-part, boss-kill, hulk, chain4, medal5k, stage-S,
+// locclear, section:<id>, intensity) and windows to avoid (lost ships, hits, lessons, lulls), each with its game
+// time, video segment and frame, for the video editor (scripts/play/edit.js). --rank scores takes for showcase use.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -215,6 +221,8 @@ async function analyzeVideo(file) {
     motion: stats(motionPerSec),
     motionPerSec,
     flashesPerMin: +(flashes.length / minutes).toFixed(1),
+    // the photosensitivity guideline: no more than 3 flashes in any 1 s
+    flashMax1s: flashes.reduce((m, f, i) => Math.max(m, flashes.filter((g) => g >= f && g < f + FPS).length), 0),
     flashGap: stats(flashes.slice(1).map((f, i) => (f - flashes[i]) / FPS)),
     audioOnsetsPerMin: info.audio ? +(onsetTimes.length / minutes).toFixed(1) : null,
     onsetGap: stats(onsetTimes.slice(1).map((t, i) => t - onsetTimes[i])),
@@ -488,10 +496,163 @@ function smooth(a, k) {
   });
 }
 
+// ------------------------------------------------------------------------------------------------
+// highlights (ai/plan_0.md §3.4)
+
+const POWER = ['SINGLE', 'TWIN', 'QUAD', 'MISSILES', 'SPIRAL', 'FULL']; // src/game/player.js
+
+function readTake(dir) {
+  const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
+  const tm = JSON.parse(readFileSync(join(dir, 'telemetry.json'), 'utf8'));
+  return { meta, tm, C: Object.fromEntries(tm.columns.map((c, i) => [c, i])) };
+}
+
+/** The video segment showing game time t, and the frame in it. */
+function locate(meta, t) {
+  for (const s of meta.segments || []) {
+    if (s.t0 === null) continue;
+    const f = Math.round((t - s.t0) * 60);
+    if (f >= 0 && f < s.frames) return { seg: s.name, frame: f, film: s.film };
+  }
+  return { seg: null, frame: null, film: false };
+}
+
+function takeHighlights(dir) {
+  const { meta, tm, C } = readTake(dir);
+  const E = tm.events;
+  const ev = (k) => E.filter((e) => e.ev === k);
+  const out = [];
+  const add = (tag, t, from, to, info = {}) => out.push({ tag, t: +t.toFixed(3), from: +from.toFixed(3), to: +to.toFixed(3), ...locate(meta, t), ...info });
+
+  for (const e of ev('power')) if (e.level >= 4) add('power', e.t, e.t - 1, e.t + 4, { level: POWER[e.level] });
+  for (const e of ev('power')) if (e.level >= 1 && e.level < 4) add('power-low', e.t, e.t - 1, e.t + 3, { level: POWER[e.level] });
+  for (const e of ev('pickup')) if (e.type === 'laser') add('laser', e.t, e.t - 0.5, e.t + 6);
+  const aligned = ev('kill').filter((e) => e.aligned);
+  for (let i = 0; i < aligned.length; i++) {
+    let j = i;
+    while (j + 1 < aligned.length && aligned[j + 1].t - aligned[i].t <= 3) j++;
+    if (j - i >= 2) {
+      add('aligned', aligned[i].t, aligned[i].t - 2, aligned[j].t + 1, { kills: j - i + 1 });
+      i = j;
+    }
+  }
+  let section = null;
+  const sectionAt = [];
+  for (const e of E) {
+    if (e.ev === 'section') {
+      section = e.id;
+      sectionAt.push(e);
+    }
+    if (e.ev === 'evade') add('evade', e.t, e.t - 1.5, e.t + 1.5, { section });
+    if (e.ev === 'bomb') add(e.bullets >= 8 ? 'bomb' : 'bomb-small', e.t, e.t - 1.5, e.t + 3, { bullets: e.bullets });
+    if (e.ev === 'boss' && e.part) add(e.core ? 'boss-kill' : 'boss-part', e.t, e.t - 2, e.t + (e.core ? 5 : 1.5), { name: e.name, part: e.part });
+    if (e.ev === 'boss' && e.escaped) add('boss-escaped', e.t, e.t - 2, e.t + 3, { name: e.name });
+    if (e.ev === 'hulk' && e.killed) add('hulk', e.t, e.t - 3, e.t + 2, { type: e.type });
+    if (e.ev === 'pickup' && e.type === 'medal' && e.value >= 5000) add('medal5k', e.t, e.t - 3, e.t + 1.5, { value: e.value });
+    if (e.ev === 'stageclear' && e.grade === 'S') add('stage-S', e.t, e.t - 1, e.t + 4, { loc: e.loc, n: e.n });
+    if (e.ev === 'locclear') add('locclear', e.t, e.t - 1, e.t + 4, { loc: e.loc });
+    if (e.ev === 'kill' && e.chain === 50) add('chain4', e.t, e.t - 2, e.t + 2);
+  }
+  sectionAt.forEach((e, i) => add('section:' + e.id, e.t, e.t, sectionAt[i + 1]?.t ?? e.t + 30));
+
+  // windows to keep out of the edit
+  const avoid = [];
+  const shun = (why, from, to) => avoid.push({ why, from: +from.toFixed(3), to: +to.toFixed(3) });
+  for (const e of ev('hit')) shun('hit', e.t - 2, e.t + 1);
+  let lives = null;
+  for (const r of tm.samples) {
+    if (lives !== null && r[C.lives] < lives) shun('lost ship', r[C.t] - 4, r[C.t] + 4);
+    lives = r[C.lives];
+  }
+  const shown = {};
+  for (const e of ev('lesson')) {
+    if (e.what === 'shown') shown[e.id] = e.t;
+    else if (shown[e.id] !== undefined) {
+      shun('lesson', shown[e.id], e.t + 1);
+      delete shown[e.id];
+    }
+  }
+  const kills = ev('kill').map((e) => e.t);
+  // a gap with no kill in play (not across a held screen: the location clear and star map, or a game over)
+  const held = E.filter((e) => e.ev === 'locclear' || e.ev === 'over').map((e) => e.t);
+  for (let i = 1; i < kills.length; i++) {
+    if (kills[i] - kills[i - 1] > 4 && !held.some((t) => t > kills[i - 1] && t < kills[i])) shun('lull', kills[i - 1] + 1.5, kills[i] - 0.5);
+  }
+
+  // intensity: enemies + enemy bullets on screen + kills, per second; the best 5 s windows are the hooks
+  const per = new Map();
+  for (const r of tm.samples) {
+    if (!r[C.alive]) continue;
+    const k = Math.floor(r[C.t]);
+    per.set(k, (per.get(k) || 0) + (r[C.enemies] + r[C.bullets] * 0.5) / 4);
+  }
+  for (const t of kills) per.set(Math.floor(t), (per.get(Math.floor(t)) || 0) + 1.5);
+  const secs = [...per.keys()].sort((a, b) => a - b);
+  const win = [];
+  for (const k of secs) {
+    let sc = 0;
+    for (let j = 0; j < 5; j++) sc += per.get(k + j) || 0;
+    win.push({ k, sc });
+  }
+  win.sort((a, b) => b.sc - a.sc);
+  const overlaps = (a0, a1) => avoid.some((w) => w.from < a1 && w.to > a0);
+  const picked = [];
+  for (const w of win) {
+    if (picked.length >= +(args.top || 12)) break;
+    if (overlaps(w.k, w.k + 5) || picked.some((p) => Math.abs(p.k - w.k) < 8)) continue;
+    picked.push(w);
+    add('intensity', w.k + 2.5, w.k, w.k + 5, { score: +w.sc.toFixed(1) });
+  }
+  for (const h of out) h.clean = !overlaps(h.from, h.to);
+  out.sort((a, b) => a.t - b.t);
+  return { meta, tm, highlights: out, avoid };
+}
+
+function highlights(dirs) {
+  if (!args.rank) {
+    const dir = dirs[0];
+    const { highlights: H, avoid } = takeHighlights(dir);
+    writeFileSync(join(dir, 'highlights.json'), JSON.stringify({ highlights: H, avoid }, null, 1));
+    const n = countBy(H, 'tag');
+    console.log(`${H.length} highlights (${H.filter((h) => h.clean).length} clean), ${avoid.length} windows to avoid → ${join(dir, 'highlights.json')}`);
+    console.log(Object.entries(n).map(([k, v]) => `${k} ${v}`).join(' · '));
+    return;
+  }
+  // --rank (ai/plan_0.md §3.3): a good take reaches location 5 without a continue, holds SPIRAL/FULL, has S grades,
+  // a ×4 chain and a 5,000 medal, and reaches the Dreadnought
+  const rows = dirs.map((dir) => {
+    const { meta, tm, highlights: H, avoid } = takeHighlights(dir);
+    const C = Object.fromEntries(tm.columns.map((c, i) => [c, i]));
+    const reached = Math.max(0, ...tm.samples.map((r) => r[C.loc]));
+    const continues = tm.events.filter((e) => e.ev === 'over').length - (meta.endReason === 'game over' ? 1 : 0);
+    const highPower = tm.samples.filter((r) => r[C.power] >= 4).length / 4;
+    const tag = (k) => H.filter((h) => h.tag === k).length;
+    const dread = tm.events.some((e) => e.ev === 'boss' && /dreadnought/i.test(e.name || ''));
+    const lost = avoid.filter((w) => w.why === 'lost ship').length;
+    const firstContinueLoc = (() => {
+      const o = tm.events.find((e) => e.ev === 'over');
+      if (!o) return null;
+      const s = tm.samples.find((r) => r[C.t] >= o.t);
+      return s ? s[C.loc] : reached;
+    })();
+    const score = reached * 10 + (firstContinueLoc === null || firstContinueLoc >= 5 ? 15 : firstContinueLoc * 2) + highPower / 30 + tag('stage-S') * 2 + Math.min(3, tag('chain4')) * 2 + Math.min(3, tag('medal5k')) * 2 + (dread ? 10 : 0) + tag('bomb') - lost * 1.5;
+    return {
+      take: basename(dir), seed: meta.seed, size: meta.size?.join?.('x'), reached, continues, firstContinueAt: firstContinueLoc, end: meta.endReason,
+      'SPIRAL+ s': Math.round(highPower), S: tag('stage-S'), chain4: tag('chain4'), medal5k: tag('medal5k'), bombs: tag('bomb'), evades: tag('evade'), lost, dreadnought: dread, score: +score.toFixed(1),
+    };
+  });
+  rows.sort((a, b) => b.score - a.score);
+  console.table(rows);
+  // one file per take size, so ranking the portrait takes doesn't overwrite the landscape ranking
+  const sizes = [...new Set(rows.map((r) => r.size))].join('+');
+  writeFileSync(join(OUT, `rank-${sizes}.json`), JSON.stringify(rows, null, 1));
+}
+
 if (cmd === 'video') await analyzeVideo(args._[0]);
 else if (cmd === 'telemetry') analyzeTelemetry(args._[0]);
 else if (cmd === 'chart') chart(args._);
+else if (cmd === 'highlights') highlights(args.rank && args.rank !== true ? [args.rank, ...args._] : args._);
 else {
-  console.log('usage: analyze.js video <file> | telemetry <file> | chart <a.video.json> ...');
+  console.log('usage: analyze.js video <file> | telemetry <file> | chart <a.video.json> ... | highlights <take> | highlights --rank <take> ...');
   process.exit(1);
 }

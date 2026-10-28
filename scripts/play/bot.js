@@ -13,10 +13,19 @@
     novice: { reaction: 0.3, tremor: 0.0055, overshoot: 0.14, fittsA: 0.12, fittsB: 0.16, dwell: 0.14, fireDuty: 0.8, dodgeSkill: 0.55, retarget: 0.6, evadeSkill: 0.6 },
     average: { reaction: 0.23, tremor: 0.0035, overshoot: 0.09, fittsA: 0.1, fittsB: 0.12, dwell: 0.1, fireDuty: 0.87, dodgeSkill: 0.8, retarget: 0.45, evadeSkill: 0.85 },
     expert: { reaction: 0.18, tremor: 0.002, overshoot: 0.05, fittsA: 0.08, fittsB: 0.09, dwell: 0.07, fireDuty: 0.94, dodgeSkill: 1, retarget: 0.35, evadeSkill: 1 },
+    // a calm, good player for showcase video (ai/plan_0.md §3.2): the camera is the aim, so smooth, framed aim moves.
+    // maxAimRate: peak aim speed (rad/s) of a sub-movement; stickiness: stay on a target unless another scores this
+    // many times better; centreBias: prefer targets near the crosshair; moveHold: minimum hold of a movement key (s);
+    // bombStyle 'show': also bomb into a bullet curtain or an open boss, once per stage, while one is left to spare
+    showcase: {
+      reaction: 0.18, tremor: 0.0006, overshoot: 0.015, fittsA: 0.1, fittsB: 0.11, dwell: 0.09, fireDuty: 0.96, dodgeSkill: 1, retarget: 0.35, evadeSkill: 1,
+      maxAimRate: 1.6, stickiness: 1.6, centreBias: 1, moveHold: 0.15, bombStyle: 'show',
+    },
   };
   const MOUSE_RAD_PER_PX = 0.0021; // must match src/core/input.js
   const MIN_HOLD = 0.07;
   const ROLL_REPRESS = 0.36; // adjusting the roll, a person doesn't re-press a roll key this fast (that's a double-tap)
+  const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
 
   function mulberry32(a) {
     return () => {
@@ -38,7 +47,7 @@
   class Bot {
     constructor(opts = {}) {
       this.opts = { skill: 'average', seed: 1, useMarkers: true, ...opts };
-      this.p = { ...PRESETS[this.opts.skill] };
+      this.p = { ...PRESETS[this.opts.skill], ...this.opts.tune }; // tune: preset overrides (record.js --tune)
       this.rng = mulberry32(this.opts.seed * 7919 + 13);
       this.history = [];
       this.keys = new Map(); // code → time pressed
@@ -58,6 +67,8 @@
       this.aimLog = [];
       this.now = 0;
       this.stats = { aimMoves: 0, dodges: 0, bombs: 0, retargets: 0, evades: 0 };
+      this.aimRates = []; // rad/s sent per frame while playing: the camera's pan speed (the view follows the aim)
+      this.lastCum = { x: 0, y: 0 };
     }
 
     gauss() {
@@ -69,7 +80,8 @@
     key(code, down, t) {
       const held = this.keys.has(code);
       if (down === held) return;
-      if (!down && t - this.keys.get(code) < MIN_HOLD) return; // keep the minimum hold
+      const minHold = this.p.moveHold && MOVE_KEYS.has(code) ? this.p.moveHold : MIN_HOLD;
+      if (!down && t - this.keys.get(code) < minHold) return; // keep the minimum hold
       if (down) this.keys.set(code, t);
       else this.keys.delete(code);
       window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code, key: code, bubbles: true }));
@@ -158,6 +170,8 @@
         return;
       }
       this.aim(seen, older, now, t);
+      this.aimRates.push(Math.hypot(this.aimCum.x - this.lastCum.x, this.aimCum.y - this.lastCum.y) * 60);
+      this.lastCum = { ...this.aimCum };
       this.fire(seen, t);
       this.evade(seen, t);
       if (!this.evadeSeq) this.roll(seen, older, t);
@@ -183,7 +197,7 @@
         else if (q.kind === 'rock') v = 0.7;
         if (q.kind === 'enemy' && q.shielded && !seen.hud.aligned) v *= 0.45;
         const dist = Math.hypot(q.x - cx, q.y - cy);
-        let score = v / (1 + dist / 260);
+        let score = v / (1 + (dist * (1 + (this.p.centreBias || 0))) / 260);
         if (q.d < 260) score *= 1.25;
         if (score > bestScore) {
           bestScore = score;
@@ -194,6 +208,7 @@
           curScore = score;
         }
       }
+      if (cur && this.p.stickiness && curScore * this.p.stickiness >= bestScore) return cur;
       if (cur && t - this.targetT < this.p.retarget * 4 && curScore >= bestScore * 0.7) return cur;
       if (best && best.id !== this.target) {
         this.target = best.id;
@@ -232,9 +247,13 @@
       const D = Math.hypot(ox, oy);
       const W = Math.max(8, q.s * 2);
       if (D < Math.max(5, q.s * 0.5)) return;
-      const T = p.fittsA + p.fittsB * Math.log2(1 + D / W);
+      let T = p.fittsA + p.fittsB * Math.log2(1 + D / W);
       const gain = 1 + p.overshoot * 0.4 + this.gauss() * p.overshoot;
-      this.move = { t0: t, T, f: 0, ax: Math.atan(ox / seen.f) * gain, ay: Math.atan(oy / seen.f) * gain };
+      const ax = Math.atan(ox / seen.f) * gain;
+      const ay = Math.atan(oy / seen.f) * gain;
+      // a minimum-jerk move peaks at 1.875× its mean speed
+      if (p.maxAimRate) T = Math.max(T, (1.875 * Math.hypot(ax, ay)) / p.maxAimRate);
+      this.move = { t0: t, T, f: 0, ax, ay };
       this.stats.aimMoves++;
     }
 
@@ -445,6 +464,20 @@
         this.key('ShiftLeft', true, t);
         this.bombCd = t + 3;
         this.stats.bombs++;
+        return;
+      }
+      if (this.p.bombStyle !== 'show') return;
+      // showcase: a bomb into a bullet curtain, or into an open boss under fire; once per stage (read off the HUD),
+      // and below 2 shield pips one bomb stays in reserve
+      const stage = document.getElementById('hud-stage')?.textContent || '';
+      if (stage === this.showBombStage || seen.hud.bombs <= (seen.hud.shield < 2 ? 1 : 0)) return;
+      const bullets = seen.hazards.filter((h) => h.kind === 'bullet' || h.kind === 'shell').length;
+      const bossOpen = seen.targets.some((q) => q.kind === 'boss' && q.open && String(q.id).startsWith('boss-'));
+      if (bullets >= 8 || (bossOpen && bullets >= 3)) {
+        this.key('ShiftLeft', true, t);
+        this.showBombStage = stage;
+        this.bombCd = t + 3;
+        this.stats.bombs++;
       }
     }
   }
@@ -466,7 +499,11 @@
       loop();
     },
     stats() {
-      return this.bot?.stats;
+      const b = this.bot;
+      if (!b) return null;
+      const r = [...b.aimRates].sort((x, y) => x - y);
+      const q = (f) => +(r[Math.min(r.length - 1, Math.floor(r.length * f))] || 0).toFixed(2);
+      return { ...b.stats, aimRate: { p50: q(0.5), p90: q(0.9), p99: q(0.99), max: q(1) } };
     },
   };
 })();

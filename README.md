@@ -196,6 +196,31 @@ time, and pipes screenshots to `ffmpeg`. Sound is recorded as effect calls and r
 video's sound is loudness-normalised; the level the game actually plays at is saved as `rawLufs` in the run's
 `.meta.json`.
 
+### Showcase videos
+
+The YouTube video, the Short and the X post are cut from bot takes (`ai/plan_0.md`). A run depends only on the
+seed, `--size`, `--q` and the hold lengths, so a fast telemetry-only scout replays exactly as the filmed shoot.
+`--dpr`, `--master` and `--clean` don't change the run.
+
+```bash
+# 1. scout: whole campaigns, telemetry only (about 2 min each), then rank them
+npm run record -- --skill showcase --q high --campaign --max 3600 --no-video --seed 7 --out recordings/scout
+npm run analyze -- highlights --rank recordings/scout/*-1280x720  # → recordings/analysis/rank-1280x720.json
+# 2. shoot the best seed: 1280x720 at --dpr 2 is a 2560x1440 master with a 720p HUD (about 4 h on a GTX 1050)
+npm run record -- --skill showcase --q high --campaign --max 3600 --seed 7 --dpr 2 --master --clean
+npm run record -- --skill showcase --q high --campaign --max 3600 --seed 4 --size 540x960 --dpr 2 --master --clean --video-locs 2,3,4,5
+npm run record -- --attract 40 --q high --dpr 2 --master --clean        # the title fly-by under the cards
+# 3. cut: the edit list scripts/play/edits/<name>.json → recordings/videos/pilot-one-<name>.{mp4,txt}
+npm run analyze -- highlights recordings/<take>                           # tagged moments, and windows to avoid
+npm run video -- youtube --draft                                          # fast encode, for review
+npm run video -- youtube                                                  # the upload: checks size, fps, length,
+                                                                          # −14 LUFS, true peak and flashes
+```
+
+A take is a folder: one video per location (`L1.mp4` …) with its sound as stems (`L1.mix.wav`, `.sfx.wav`,
+`.music.wav`), plus `telemetry.json` and `meta.json`. On Linux with a hybrid GPU, prefix the shoot with
+`__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia` to render on the discrete GPU.
+
 
 ## Project layout
 
